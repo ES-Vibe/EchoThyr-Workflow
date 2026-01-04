@@ -1,4 +1,7 @@
 ﻿# --- CONFIGURATION ---
+# Script version (Semantic Versioning)
+$VERSION = "1.0.0"
+
 # Force UTF-8 encoding for proper French character handling
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -247,18 +250,22 @@ function Get-Measurements {
 
 # Initialize logging system
 Initialize-Logging
-Write-Log "Script started" -Level 'INFO'
+Write-Log "Script started - Version $VERSION" -Level 'INFO'
 Write-Log "Configuration - Source: $dossierSource, Template: $cheminModele, Tesseract: $tesseractExe" -Level 'INFO'
 
 # Perform startup validation
 Test-Prerequisites
 
 $dossiersInitiaux = Get-ChildItem -Path $dossierSource -Directory -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
-Write-Host "--- SCRIPT ACTIF : MONITORING CR ECHO THYR GENERATION ---" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "╔════════════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+Write-Host "║  ECHOTHYR AUTOMATION - MONITORING CR ECHO THYR GENERATION        v$VERSION  ║" -ForegroundColor Cyan
+Write-Host "╚════════════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host ""
 Write-Host "Source Directory: $dossierSource" -ForegroundColor Cyan
-Write-Host "Template File: $cheminModele" -ForegroundColor Cyan
-Write-Host "Log File: $logFile" -ForegroundColor Cyan
-Write-Host "Monitoring started at $(Get-Date -Format 'HH:mm:ss')" -ForegroundColor Cyan
+Write-Host "Template File   : $cheminModele" -ForegroundColor Cyan
+Write-Host "Log File        : $logFile" -ForegroundColor Cyan
+Write-Host "Monitoring start: $(Get-Date -Format 'HH:mm:ss')" -ForegroundColor Cyan
 Write-Host "-" * 80 -ForegroundColor Cyan
 
 while($true) {
