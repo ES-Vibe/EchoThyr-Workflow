@@ -1,0 +1,25 @@
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Windows thumbnail cache
+Thumbs.db
+
+# Word temporary files
+~$*.doc*
+
+# PowerShell debugging
+*.pdb
+
+# Modele Word (peut contenir des infos sensibles)
+Modele_Echo.docx
+
+# Anciens scripts (gardons seulement tess3.ps1)
+tess.ps1
+tess2.ps1
+
+# Plan files (fichiers de planification temporaires)
+.claude/

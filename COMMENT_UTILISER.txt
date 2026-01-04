@@ -1,0 +1,170 @@
+================================================================================
+                    GUIDE D'UTILISATION - ECHOTHYR MONITOR
+                              Script tess3.ps1
+================================================================================
+
+📁 FICHIERS DISPONIBLES
+================================================================================
+
+1. tess3.ps1
+   └─ Le script PowerShell principal (ameliore)
+
+2. Lancer_EchoThyr.bat  ⭐ RECOMMANDE POUR DEBUT
+   └─ Double-cliquez pour lancer le script avec fenetre visible
+   └─ Vous verrez tous les messages et notifications
+   └─ Arret : Ctrl+C ou fermez la fenetre
+
+3. Lancer_EchoThyr_Silencieux.vbs
+   └─ Lance le script en arriere-plan (sans fenetre)
+   └─ Utile pour demarrage automatique au demarrage Windows
+   └─ Les notifications sonores/visuelles fonctionnent toujours
+
+4. Arreter_EchoThyr.bat
+   └─ Arrete tous les processus EchoThyr en arriere-plan
+   └─ Utilisez si vous avez lance la version silencieuse
+
+5. Modele_Echo.docx
+   └─ Template Word pour les comptes rendus
+
+
+📋 DEMARRAGE RAPIDE
+================================================================================
+
+PREMIERE UTILISATION :
+1. Double-cliquez sur "Lancer_EchoThyr.bat"
+2. Verifiez que tous les chemins sont valides (affichage vert)
+3. Laissez la fenetre ouverte
+4. Deposez un dossier patient dans C:\EchoThyr\export
+5. Attendez le double BEEP et la banniere verte !
+
+
+🚀 DEMARRAGE AUTOMATIQUE AU DEMARRAGE WINDOWS
+================================================================================
+
+Methode 1 - Raccourci dans le dossier Demarrage :
+1. Clic droit sur "Lancer_EchoThyr_Silencieux.vbs"
+2. Copier
+3. Ouvrez : C:\Users\Emeric\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup
+4. Clic droit → Coller le raccourci
+5. Redemarrez Windows pour tester
+
+Methode 2 - Planificateur de taches Windows :
+1. Tapez "Planificateur de taches" dans le menu Demarrer
+2. Actions → Creer une tache de base
+3. Nom : "EchoThyr Monitor"
+4. Declencheur : "Au demarrage de l'ordinateur"
+5. Action : "Demarrer un programme"
+6. Programme : C:\Users\Emeric\Desktop\Claude\Lancer_EchoThyr_Silencieux.vbs
+
+
+🔍 VERIFICATION DU FONCTIONNEMENT
+================================================================================
+
+Le script fonctionne si vous voyez :
+✅ [SUCCESS] Source directory verified: C:\EchoThyr\export
+✅ [SUCCESS] Template file verified: C:\EchoThyr\Modele_Echo.docx
+✅ [SUCCESS] Tesseract version check passed
+✅ Monitoring started at XX:XX:XX
+
+Logs disponibles dans : C:\EchoThyr\logs\tess3_YYYY-MM-DD.log
+
+
+🔔 NOTIFICATIONS
+================================================================================
+
+SUCCES (CR genere) :
+🔊 Double BEEP ascendant (800Hz → 1200Hz)
+🟢 Banniere VERTE avec nom du patient et CR
+
+ERREUR :
+🔊 Double BEEP descendant (400Hz × 2)
+🔴 Banniere ROUGE avec details de l'erreur
+
+
+📂 STRUCTURE DES DOSSIERS
+================================================================================
+
+C:\EchoThyr\
+├── export\                    ← Deposez les dossiers patients ICI
+│   └── NOM Prenom\           ← Format du nom de dossier
+│       ├── image1.jpg        ← Images echographie
+│       ├── image2.jpg
+│       ├── $image1.jpg       ← Images redimensionnees (auto)
+│       ├── $image2.jpg
+│       ├── CR ECHO THYR NOM Prenom DD-MM-YYYY.docx  ← Genere auto
+│       └── CR ECHO THYR NOM Prenom DD-MM-YYYY.pdf   ← Genere auto
+│
+├── logs\                      ← Logs quotidiens (cree automatiquement)
+│   └── tess3_2026-01-04.log
+│
+└── Modele_Echo.docx          ← Template Word
+
+
+⚠️ PREREQUIS
+================================================================================
+
+OBLIGATOIRES (verifies au demarrage) :
+✓ Dossier C:\EchoThyr\export existe
+✓ Fichier C:\EchoThyr\Modele_Echo.docx existe
+✓ Tesseract OCR installe dans C:\Program Files\Tesseract-OCR\
+✓ Microsoft Word installe
+
+
+🛑 ARRETER LE SCRIPT
+================================================================================
+
+Si lance avec Lancer_EchoThyr.bat (fenetre visible) :
+→ Ctrl+C dans la fenetre PowerShell
+→ OU fermez la fenetre
+
+Si lance avec Lancer_EchoThyr_Silencieux.vbs (arriere-plan) :
+→ Double-cliquez sur "Arreter_EchoThyr.bat"
+→ OU ouvrez Gestionnaire de taches → Terminer processus "powershell.exe"
+
+
+📊 CONSULTER LES LOGS
+================================================================================
+
+Logs du jour :
+C:\EchoThyr\logs\tess3_2026-01-04.log
+
+Ouvrir avec :
+- Notepad : notepad C:\EchoThyr\logs\tess3_2026-01-04.log
+- Ou double-cliquez sur le fichier .log
+
+
+💡 CONSEILS
+================================================================================
+
+✓ Testez d'abord avec Lancer_EchoThyr.bat pour voir les messages
+✓ Une fois confiant, utilisez la version silencieuse au demarrage
+✓ Consultez les logs en cas de probleme
+✓ Le script verifie toutes les 10 secondes les nouveaux dossiers
+✓ Les fichiers logs sont crees quotidiennement (rotation automatique)
+
+
+🆘 PROBLEMES COURANTS
+================================================================================
+
+"Execution Policy" erreur :
+→ Ouvrez PowerShell en admin
+→ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+Tesseract non trouve :
+→ Verifiez l'installation dans C:\Program Files\Tesseract-OCR\
+→ Reinstallez Tesseract si necessaire
+
+Template non trouve :
+→ Assurez-vous que Modele_Echo.docx existe
+→ Chemin exact : C:\EchoThyr\Modele_Echo.docx
+
+Aucun CR genere :
+→ Verifiez les logs dans C:\EchoThyr\logs\
+→ Format du dossier : "NOM Prenom" (espace entre les deux)
+→ Images doivent etre en .jpg
+
+
+================================================================================
+Version du script : tess3.ps1 (ameliore 2026-01-04)
+Createur : Claude Code
+================================================================================
