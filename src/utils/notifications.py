@@ -49,14 +49,15 @@ class Notifier:
         RESET = '\033[0m'
         BLACK_BG = '\033[40m'
 
+        # Use simple ASCII characters for Windows compatibility
         banner = f"""
-{GREEN}{'─' * 80}
+{GREEN}{'-' * 80}
 SUCCESS: Report Generated Successfully!
-{'─' * 80}
+{'-' * 80}
 Report Name    : {report_name}
 Patient Info   : {patient_info}
 Generated At   : {datetime.now().strftime('%H:%M:%S')}
-{'─' * 80}{RESET}
+{'-' * 80}{RESET}
 """
         print(banner)
 
@@ -65,14 +66,15 @@ Generated At   : {datetime.now().strftime('%H:%M:%S')}
         RED = '\033[91m'
         RESET = '\033[0m'
 
+        # Use simple ASCII characters for Windows compatibility
         banner = f"""
-{RED}{'─' * 80}
+{RED}{'-' * 80}
 ERROR: Report Generation Failed
-{'─' * 80}
+{'-' * 80}
 Context        : {context}
 Error Message  : {error_message}
 Occurred At    : {datetime.now().strftime('%H:%M:%S')}
-{'─' * 80}{RESET}
+{'-' * 80}{RESET}
 """
         print(banner)
 
@@ -81,15 +83,16 @@ Occurred At    : {datetime.now().strftime('%H:%M:%S')}
         CYAN = '\033[96m'
         RESET = '\033[0m'
 
+        # Use simple ASCII characters for Windows compatibility
         banner = f"""
-{CYAN}╔════════════════════════════════════════════════════════════════════════════════╗
-║  ECHOTHYR AUTOMATION - MONITORING CR ECHO THYR GENERATION        v{version}  ║
-╚════════════════════════════════════════════════════════════════════════════════╝
+{CYAN}{'=' * 80}
+  ECHOTHYR AUTOMATION - MONITORING CR ECHO THYR GENERATION        v{version}
+{'=' * 80}
 
 Source Directory: {config.source_dir}
 Template File   : {config.template_path}
 Log Directory   : {config.log_dir}
 Monitoring start: {datetime.now().strftime('%H:%M:%S')}
-{'─' * 80}{RESET}
+{'-' * 80}{RESET}
 """
         print(banner)
