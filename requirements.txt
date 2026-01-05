@@ -1,0 +1,47 @@
+# ============================================================================
+# CR-ECHO-AUTO - Python Dependencies
+# Version: 2.0.0
+# ============================================================================
+
+# Core dependencies
+pytesseract==0.3.13         # Tesseract OCR wrapper
+Pillow==10.2.0              # Image processing (resize, format conversion)
+python-docx==1.1.0          # Word document generation (native, no COM)
+watchdog==4.0.0             # Folder monitoring
+PyYAML==6.0.1               # Configuration file parsing
+
+# Logging and notifications
+colorlog==6.8.2             # Colored console logging
+plyer==2.1.0                # Cross-platform notifications (beep, toast)
+
+# PDF generation
+reportlab==4.0.9            # PDF generation from scratch
+docx2pdf==0.1.8             # DOCX to PDF conversion (Windows only)
+
+# Windows-specific (optional, for COM Word access)
+pywin32==306; platform_system=="Windows"  # COM automation
+
+# Future ML/AI capabilities (optional, comment out if not needed yet)
+# tensorflow==2.15.0        # Deep Learning framework
+# scikit-learn==1.4.0       # Machine Learning
+# opencv-python==4.9.0      # Computer Vision
+# numpy==1.26.3             # Numerical computing
+# pandas==2.2.0             # Data manipulation
+
+# Development dependencies (optional)
+pytest==8.0.0               # Unit testing
+pytest-cov==4.1.0           # Code coverage
+black==24.1.1               # Code formatting
+flake8==7.0.0               # Linting
+mypy==1.8.0                 # Type checking
+
+# ============================================================================
+# Installation:
+#   pip install -r requirements.txt
+#
+# Minimal install (production only):
+#   pip install pytesseract Pillow python-docx watchdog PyYAML colorlog plyer reportlab
+#
+# With ML/AI:
+#   Uncomment ML libraries above and run: pip install -r requirements.txt
+# ============================================================================

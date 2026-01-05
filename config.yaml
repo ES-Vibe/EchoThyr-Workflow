@@ -1,0 +1,43 @@
+# ============================================================================
+# EchoThyr Automation - Configuration File
+# Version: 2.0.0
+# ============================================================================
+
+# Paths
+source_dir: "C:\\EchoThyr\\export"                           # Folder to monitor for new patient folders
+template_path: "C:\\EchoThyr\\Modele_Echo.docx"              # Word template file
+log_dir: "C:\\EchoThyr\\logs"                                # Log files directory
+tesseract_path: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"  # Tesseract executable
+
+# Image Processing
+target_width: 1200                                            # Target width for resized images (pixels)
+
+# Monitoring
+check_interval: 10                                            # Folder check interval (seconds)
+
+# OCR Settings
+ocr_language: "eng"                                           # Tesseract language (eng, fra, etc.)
+ocr_psm: 6                                                    # Page Segmentation Mode (6 = uniform block of text)
+
+# Document Generation
+generate_pdf: true                                            # Auto-generate PDF from Word document
+embed_images: true                                            # Embed resized images in document
+
+# Logging
+log_level: "INFO"                                             # Log level: DEBUG, INFO, WARNING, ERROR
+console_colors: true                                          # Enable colored console output
+
+# Notifications
+enable_beep: true                                             # Enable audio notifications (beep)
+enable_banner: true                                           # Enable visual banners (console)
+
+# Advanced Settings
+max_workers: 4                                                # Max concurrent workers (future use)
+encoding: "utf-8"                                             # File encoding
+
+# ============================================================================
+# Notes:
+# - All paths use Windows format with double backslashes (\\)
+# - For Linux/Mac, use forward slashes (/) instead
+# - Restart application after modifying this file
+# ============================================================================
