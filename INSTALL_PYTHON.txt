@@ -1,0 +1,115 @@
+================================================================================
+                    GUIDE D'INSTALLATION - VERSION PYTHON 2.0.0
+================================================================================
+
+ETAPE 1 : INSTALLER PYTHON
+================================================================================
+
+Methode A - Site officiel (RECOMMANDEE):
+1. Allez sur : https://www.python.org/downloads/
+2. Cliquez sur le gros bouton jaune "Download Python 3.12.x"
+3. Lancez l'installateur telecharge
+
+   IMPORTANT: Cochez la case "Add Python to PATH" !!!
+
+4. Cliquez "Install Now"
+5. Attendez la fin de l'installation
+6. Fermez toutes les fenetres PowerShell/CMD ouvertes
+
+Methode B - Microsoft Store (RAPIDE):
+1. Ouvrez Microsoft Store
+2. Cherchez "Python 3.12" ou "Python 3.11"
+3. Cliquez "Obtenir"
+4. Attendez l'installation
+
+
+ETAPE 2 : VERIFIER L'INSTALLATION
+================================================================================
+
+1. Ouvrez un NOUVEAU PowerShell (ou terminal)
+2. Tapez : python --version
+3. Devrait afficher : Python 3.12.x (ou 3.11.x)
+
+Si ca ne marche pas:
+- Fermez TOUTES les fenetres PowerShell
+- Rouvrez une NOUVELLE fenetre
+- Reessayez
+
+
+ETAPE 3 : TESTER L'INSTALLATION COMPLETE
+================================================================================
+
+Double-cliquez sur : test_installation.bat
+
+Ce script va :
+- Verifier que Python est installe
+- Installer toutes les dependances necessaires
+- Verifier que tout fonctionne
+- Tester le script Python
+
+Si tout est OK, vous verrez :
+[OK] Python est installe
+[OK] pip est disponible
+[OK] Dependances installees
+[OK] Tous les modules s'importent correctement
+[OK] Script Python fonctionne
+
+
+ETAPE 4 : LANCER LE SCRIPT
+================================================================================
+
+Deux manieres :
+
+A. Double-cliquez sur : Lancer_EchoThyr_Python.bat
+   (lance avec fenetre visible)
+
+B. En ligne de commande :
+   cd C:\Users\Emeric\Desktop\Claude
+   python main.py
+
+
+DEPANNAGE
+================================================================================
+
+Probleme : "Python est introuvable"
+Solution :
+- Verifiez que Python est bien installe
+- Reinstallez en cochant "Add Python to PATH"
+- Redemarrez votre ordinateur
+
+Probleme : "No module named 'pytesseract'"
+Solution :
+- pip install -r requirements.txt
+
+Probleme : "FATAL: Source directory not found"
+Solution :
+- Creez le dossier : C:\EchoThyr\export
+- Ou modifiez config.yaml avec le bon chemin
+
+Probleme : Script demarre mais ne genere pas de CR
+Solution :
+- Verifiez les logs dans : C:\EchoThyr\logs\
+- Assurez-vous que Tesseract est installe
+- Verifiez que le template Word existe
+
+
+VERSIONS
+================================================================================
+
+PowerShell v1.0.0 : Ancien script (legacy/tess3.ps1)
+Python v2.0.0     : Nouveau script (main.py) <- CELUI-CI
+
+Les deux versions peuvent coexister et generer les memes documents.
+
+
+BESOIN D'AIDE ?
+================================================================================
+
+1. Consultez README_PYTHON.md pour plus de details
+2. Verifiez les logs dans C:\EchoThyr\logs\
+3. Ouvrez une issue sur GitHub
+
+
+================================================================================
+Bonne installation !
+================================================================================
