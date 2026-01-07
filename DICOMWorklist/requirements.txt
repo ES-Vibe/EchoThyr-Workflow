@@ -1,0 +1,8 @@
+# DICOM Worklist Server - Dépendances Python
+
+# DICOM networking
+pynetdicom>=3.0.0
+pydicom>=3.0.0
+
+# Configuration
+PyYAML>=6.0

@@ -6,7 +6,7 @@
 Set objShell = CreateObject("WScript.Shell")
 
 ' Chemin vers le script PowerShell
-scriptPath = objShell.CurrentDirectory & "\tess3.ps1"
+scriptPath = objShell.CurrentDirectory & "\EchoThyr.ps1"
 
 ' Lance PowerShell en mode cache (fenetre invisible)
 objShell.Run "powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File """ & scriptPath & """", 0, False

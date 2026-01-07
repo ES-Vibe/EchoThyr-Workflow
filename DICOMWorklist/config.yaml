@@ -1,0 +1,25 @@
+# Configuration du serveur DICOM Worklist
+# Pour connexion échographe GE Logiq P9
+
+server:
+  # AE Title du serveur (à configurer aussi sur l'échographe)
+  ae_title: "WORKLIST"
+
+  # Port d'écoute DICOM (104 est le port standard, mais nécessite admin)
+  # Utilisez 4242 ou autre port > 1024 pour éviter les problèmes de permissions
+  port: 4242
+
+csv:
+  # Chemin vers le fichier CSV Doctolib
+  # Si vide, cherche automatiquement le dernier export dans Downloads
+  path: ""
+
+  # Filtrer uniquement les RDV échographie/cytoponction thyroïde
+  filter_echo_only: true
+
+logging:
+  # Niveau de log: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+
+  # Fichier de log
+  file: "worklist_server.log"

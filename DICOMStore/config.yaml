@@ -1,0 +1,28 @@
+# Configuration du serveur DICOM Storage (PACS local)
+# Pour archivage automatique depuis échographe GE Logiq
+
+server:
+  # AE Title du serveur (à configurer sur l'échographe)
+  ae_title: "PACS_LOCAL"
+
+  # Port d'écoute DICOM
+  port: 4243
+
+storage:
+  # Dossier racine pour stocker les images DICOM
+  root_path: "C:/Users/Emeric/Desktop/Claude/DICOMStore/DICOM_Archive"
+
+  # Organisation des fichiers: patient/date/series
+  # Variables disponibles: {patient_id}, {patient_name}, {study_date}, {modality}, {series_number}
+  folder_structure: "{patient_name}_{patient_id}/{study_date}/{modality}_{series_number}"
+
+  # Conserver les fichiers DICOM originaux
+  keep_dicom: true
+
+  # Exporter aussi en format image (PNG/JPEG)
+  export_images: true
+  image_format: "png"
+
+logging:
+  level: "INFO"
+  file: "dicom_store.log"

@@ -1,0 +1,44 @@
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Windows thumbnail cache
+Thumbs.db
+
+# Word temporary files
+~$*.doc*
+
+# PowerShell debugging
+*.pdb
+
+# Modele Word (peut contenir des infos sensibles)
+Modele_Echo.docx
+
+# Anciens scripts (gardons seulement tess3.ps1)
+tess.ps1
+tess2.ps1
+
+# Plan files (fichiers de planification temporaires)
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/

@@ -1,44 +1,91 @@
-# Logs
-*.log
-
-# Temporary files
-*.tmp
-*.temp
-
-# Windows thumbnail cache
-Thumbs.db
-
-# Word temporary files
-~$*.doc*
-
-# PowerShell debugging
-*.pdb
-
-# Modele Word (peut contenir des infos sensibles)
-Modele_Echo.docx
-
-# Anciens scripts (gardons seulement tess3.ps1)
-tess.ps1
-tess2.ps1
-
-# Plan files (fichiers de planification temporaires)
-.claude/
+# ============================================================================
+# MEDICAL DICOM SUITE - Global .gitignore
+# ============================================================================
 
 # Python
+# ------
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
-.venv
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 pip-log.txt
 pip-delete-this-directory.txt
 .pytest_cache/
 .coverage
 htmlcov/
-dist/
-build/
-*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE & Editors
+# -------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# Logs
+# ----
+*.log
+logs/
+
+# DICOM Projects - Données sensibles patients
+# --------------------------------------------
+# DICOMStore - Archive DICOM (contient images patients)
+DICOMStore/DICOM_Archive/
+DICOMStore/*.log
+
+# DICOMWorklist - Logs serveur
+DICOMWorklist/*.log
+
+# EchoThyr - Logs et données patients
+EchoThyr-Python/logs/
+C:/EchoThyr/
+
+# Templates Word (peuvent contenir infos médicales sensibles)
+*.docx
+!Modele_Echo_Template.docx
+
+# Documents générés (comptes rendus patients)
+*.pdf
+
+# OS Files
+# --------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Windows temporary files
+*.tmp
+*.temp
+~$*
+
+# PowerShell
+*.pdb
+
+# Backup files
+# ------------
+*.bak
+*.backup
+*.old
