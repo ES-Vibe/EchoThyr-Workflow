@@ -1,0 +1,40 @@
+MIT License
+
+Copyright (c) 2026 ES-Vibe / Medical DICOM Suite
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+IMPORTANT NOTICE FOR MEDICAL USE:
+
+This software is intended for medical workflow automation and should be used
+in accordance with applicable medical device regulations and data protection
+laws (GDPR, HIPAA, etc.). The authors assume no liability for medical decisions
+made based on this software's output. Always verify generated reports and
+measurements manually before clinical use.
+
+This software handles sensitive patient data. Ensure compliance with:
+- GDPR (Europe)
+- HIPAA (US)
+- Local data protection regulations
+- Medical device certification requirements if applicable
+
+Keep all patient data on secure, isolated local networks. Do not expose
+DICOM servers to the public internet without proper security measures.
