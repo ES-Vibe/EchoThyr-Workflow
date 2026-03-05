@@ -1,6 +1,6 @@
 # ============================================================================
 # CR-ECHO-AUTO - Python Dependencies
-# Version: 2.0.0
+# Version: 2.1.0 - DICOM Support
 # ============================================================================
 
 # Core dependencies
@@ -9,6 +9,10 @@ Pillow==10.2.0              # Image processing (resize, format conversion)
 python-docx==1.1.0          # Word document generation (native, no COM)
 watchdog==4.0.0             # Folder monitoring
 PyYAML==6.0.1               # Configuration file parsing
+
+# DICOM support
+pydicom>=2.4.0              # DICOM file reading and parsing
+numpy>=1.26.0               # Required for DICOM pixel array processing
 
 # Logging and notifications
 colorlog==6.8.2             # Colored console logging

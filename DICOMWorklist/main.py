@@ -9,6 +9,7 @@ accessible depuis l'échographe via le protocole DICOM.
 import sys
 import os
 import logging
+import subprocess
 import yaml
 from pathlib import Path
 from datetime import datetime
@@ -130,12 +131,39 @@ def print_patients_summary(patients: list, logger):
     print()
 
 
+def kill_existing_on_port(port: int):
+    """Tue toute instance existante écoutant sur ce port"""
+    try:
+        result = subprocess.run(
+            ['netstat', '-ano'],
+            capture_output=True, text=True, timeout=5
+        )
+        pids = set()
+        for line in result.stdout.splitlines():
+            if f':{port}' in line and 'LISTENING' in line:
+                parts = line.split()
+                if parts:
+                    pids.add(parts[-1])
+        my_pid = str(os.getpid())
+        for pid in pids:
+            if pid != my_pid and pid != '0':
+                print(f"  Arrêt de l'ancienne instance (PID {pid}) sur le port {port}...")
+                subprocess.run(['taskkill', '/PID', pid, '/F'],
+                               capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+
 def main():
     """Point d'entrée principal"""
     print_banner()
 
     # Charger la configuration
     config = load_config()
+
+    # Tuer toute ancienne instance sur le même port
+    port = config['server'].get('port', 4242)
+    kill_existing_on_port(port)
 
     # Setup logging
     logger = setup_logging(config['logging'])

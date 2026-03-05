@@ -332,7 +332,7 @@ HTML_TEMPLATE = """
             <button class="tool-btn" onclick="clearMeasures()">Effacer</button>
             <div class="tool-separator"></div>
             <label style="color:#888;font-size:0.8em;">Calibration:</label>
-            <input type="number" id="pixel-spacing-input" value="0.07" min="0.01" max="2" step="0.01"
+            <input type="number" id="pixel-spacing-input" value="0.105" min="0.01" max="2" step="0.005"
                    style="width:60px;padding:4px;border-radius:4px;border:1px solid #333;background:#0f3460;color:#fff;"
                    onchange="updatePixelSpacing()" title="mm/pixel">
             <span style="color:#666;font-size:0.8em;">mm/px</span>
@@ -372,7 +372,7 @@ HTML_TEMPLATE = """
         // Measurement state
         let measurements = [];
         let measurePoints = [];
-        let pixelSpacing = 0.07; // mm per pixel - calibré pour GE Logiq P9
+        let pixelSpacing = 0.105; // mm per pixel - calibré pour GE Logiq P9 thyroïde
 
         // Mouse state
         let isDragging = false;
@@ -410,7 +410,7 @@ HTML_TEMPLATE = """
                             return `
                             <div class="study-item ${currentStudy === s.path ? 'active' : ''}"
                                  onclick="event.stopPropagation(); selectStudy('${pPath}', '${sPath}')">
-                                ${s.date} (${s.count} images)
+                                ${s.date} (${s.label || s.count + ' images'})
                             </div>
                         `}).join('')}
                     </div>
@@ -486,8 +486,8 @@ HTML_TEMPLATE = """
                     pixelSpacing = img.pixel_spacing;
                     document.getElementById('pixel-spacing-input').value = pixelSpacing.toFixed(2);
                 } else {
-                    pixelSpacing = 0.07; // Calibré pour GE Logiq P9
-                    document.getElementById('pixel-spacing-input').value = '0.07';
+                    pixelSpacing = 0.105; // Calibré pour GE Logiq P9 thyroïde
+                    document.getElementById('pixel-spacing-input').value = '0.105';
                 }
 
                 applyWindowLevel();
@@ -754,6 +754,11 @@ def get_dicom_info(filepath):
     try:
         ds = dcmread(filepath, stop_before_pixels=True, force=True)
 
+        # Vérifier si c'est un SR
+        modality = str(getattr(ds, 'Modality', ''))
+        sop_class = str(getattr(ds, 'SOPClassUID', ''))
+        is_sr = modality == 'SR' or '1.2.840.10008.5.1.4.1.1.88' in sop_class
+
         # Récupérer le PixelSpacing (mm par pixel)
         pixel_spacing = None
         if hasattr(ds, 'PixelSpacing') and ds.PixelSpacing:
@@ -771,12 +776,13 @@ def get_dicom_info(filepath):
             'patient_name': str(getattr(ds, 'PatientName', 'N/A')),
             'patient_id': str(getattr(ds, 'PatientID', 'N/A')),
             'study_date': str(getattr(ds, 'StudyDate', 'N/A')),
-            'modality': str(getattr(ds, 'Modality', 'N/A')),
+            'modality': modality or 'N/A',
             'description': str(getattr(ds, 'SeriesDescription', getattr(ds, 'StudyDescription', 'N/A'))),
             'pixel_spacing': pixel_spacing,
+            'is_sr': is_sr,
         }
     except:
-        return {}
+        return {'is_sr': False}
 
 
 def dicom_to_png(filepath):
@@ -786,6 +792,15 @@ def dicom_to_png(filepath):
         from PIL import Image
 
         ds = dcmread(filepath, force=True)
+
+        # Vérifier si c'est un SR (pas d'image)
+        modality = str(getattr(ds, 'Modality', ''))
+        if modality == 'SR':
+            return None
+
+        if not hasattr(ds, 'pixel_array'):
+            return None
+
         pixel_array = ds.pixel_array
 
         # Normaliser en 8-bit
@@ -841,13 +856,36 @@ def api_patients():
             # Compter les fichiers DICOM (recherche récursive dans sous-dossiers)
             dcm_files = list(study_dir.glob('**/*.dcm'))
             png_files = list(study_dir.glob('**/*.png'))
-            count = len(dcm_files) + len(png_files)
 
-            if count > 0:
+            # Identifier les DCM pour éviter les doublons PNG
+            dcm_basenames = set()
+            for dcm_file in dcm_files:
+                dcm_basenames.add(dcm_file.stem)
+
+            # Compter les images (exclure SR et doublons PNG) et les SR séparément
+            image_count = 0
+            sr_count = 0
+            for dcm_file in dcm_files:
+                info = get_dicom_info(dcm_file)
+                if info.get('is_sr', False):
+                    sr_count += 1
+                else:
+                    image_count += 1
+            # Ajouter les PNG qui n'ont pas de DCM équivalent
+            for png_file in png_files:
+                if png_file.stem not in dcm_basenames:
+                    image_count += 1
+
+            if image_count > 0 or sr_count > 0:
+                label = f"{image_count} img"
+                if sr_count > 0:
+                    label += f" + {sr_count} SR"
                 studies.append({
                     'date': study_dir.name,
                     'path': str(study_dir),
-                    'count': count
+                    'count': image_count,
+                    'sr_count': sr_count,
+                    'label': label
                 })
 
         if studies:
@@ -863,23 +901,44 @@ def api_patients():
 
 @app.route('/api/images')
 def api_images():
-    """Liste les images d'un examen"""
+    """Liste les images d'un examen (exclut les SR et les doublons PNG)"""
     path = request.args.get('path', '')
     study_dir = Path(path)
 
     if not study_dir.exists():
         return jsonify([])
 
+    # Collecter tous les fichiers d'abord
+    all_files = sorted(study_dir.glob('**/*'))
+
+    # Identifier les fichiers DCM pour éviter les doublons PNG
+    dcm_basenames = set()
+    for f in all_files:
+        if f.is_file() and f.suffix.lower() == '.dcm':
+            dcm_basenames.add(f.stem)  # Nom sans extension
+
     images = []
-    # Recherche récursive dans les sous-dossiers
-    for f in sorted(study_dir.glob('**/*')):
-        if f.is_file() and f.suffix.lower() in ['.dcm', '.png', '.jpg', '.jpeg']:
-            info = get_dicom_info(f) if f.suffix.lower() == '.dcm' else {}
-            images.append({
-                'filename': f.name,
-                'path': str(f),
-                **info
-            })
+    for f in all_files:
+        if not f.is_file():
+            continue
+        if f.suffix.lower() not in ['.dcm', '.png', '.jpg', '.jpeg']:
+            continue
+
+        # Exclure les PNG qui ont un DCM équivalent (doublons)
+        if f.suffix.lower() == '.png' and f.stem in dcm_basenames:
+            continue
+
+        info = get_dicom_info(f) if f.suffix.lower() == '.dcm' else {'is_sr': False}
+
+        # Exclure les fichiers SR (pas d'image)
+        if info.get('is_sr', False):
+            continue
+
+        images.append({
+            'filename': f.name,
+            'path': str(f),
+            **info
+        })
 
     return jsonify(images)
 

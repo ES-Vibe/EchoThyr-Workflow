@@ -1,11 +1,29 @@
 # ============================================================================
 # EchoThyr Automation - Configuration File
-# Version: 2.0.0
+# Version: 2.1.0 - DICOM Support
 # ============================================================================
 
-# Paths
+# ===================
+# MODE SELECTION
+# ===================
+dicom_mode: true                                              # true = DICOM mode, false = legacy JPG mode
+
+# ===================
+# DICOM Mode Settings (when dicom_mode: true)
+# ===================
+dicom_source_dir: "C:\\Users\\TEST\\Desktop\\Claude\\DICOMStore\\DICOM_Archive"  # DICOM Archive folder
+jpeg_quality: 85                                              # JPEG compression quality (1-100)
+jpeg_max_width: 1200                                          # Max width for converted JPEG (pixels)
+
+# ===================
+# Legacy Mode Settings (when dicom_mode: false)
+# ===================
 source_dir: "C:\\EchoThyr\\export"                           # Folder to monitor for new patient folders
-template_path: "C:\\EchoThyr\\Modele_Echo.docx"              # Word template file
+
+# ===================
+# Common Settings
+# ===================
+template_path: "C:\\Users\\TEST\\Desktop\\Claude\\Modele_Echo.docx"              # Word template file
 log_dir: "C:\\EchoThyr\\logs"                                # Log files directory
 tesseract_path: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"  # Tesseract executable
 

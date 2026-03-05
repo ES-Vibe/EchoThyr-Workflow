@@ -42,15 +42,20 @@ class PDFExporter:
             return False
 
     def _export_windows(self, docx_path: str, pdf_path: str, logger=None) -> bool:
-        """Export using docx2pdf (Windows only)"""
+        """Export using docx2pdf (Windows only) with COM initialization"""
         try:
-            from docx2pdf import convert
-            convert(docx_path, pdf_path)
+            import pythoncom
+            pythoncom.CoInitialize()
+            try:
+                from docx2pdf import convert
+                convert(docx_path, pdf_path)
 
-            if logger:
-                logger.success(f"PDF exported: {pdf_path}")
+                if logger:
+                    logger.info(f"PDF exported: {pdf_path}")
 
-            return True
+                return True
+            finally:
+                pythoncom.CoUninitialize()
 
         except ImportError:
             if logger:
@@ -59,19 +64,26 @@ class PDFExporter:
 
     def _export_com(self, docx_path: str, pdf_path: str, logger=None) -> bool:
         """Export using Word COM automation (Windows only)"""
+        word = None
+        doc = None
+        com_initialized = False
+
         try:
             import win32com.client
+            import pythoncom
+
+            pythoncom.CoInitialize()
+            com_initialized = True
 
             word = win32com.client.Dispatch("Word.Application")
             word.Visible = False
+            word.DisplayAlerts = False
 
             doc = word.Documents.Open(str(Path(docx_path).absolute()))
             doc.SaveAs2(str(Path(pdf_path).absolute()), FileFormat=17)  # 17 = PDF format
-            doc.Close()
-            word.Quit()
 
             if logger:
-                logger.success(f"PDF exported via COM: {pdf_path}")
+                logger.info(f"PDF exported via COM: {pdf_path}")
 
             return True
 
@@ -79,6 +91,21 @@ class PDFExporter:
             if logger:
                 logger.error(f"COM PDF export failed: {e}", exc_info=e)
             return False
+
+        finally:
+            try:
+                if doc:
+                    doc.Close(False)
+                if word:
+                    word.Quit()
+            except:
+                pass
+            if com_initialized:
+                try:
+                    import pythoncom
+                    pythoncom.CoUninitialize()
+                except:
+                    pass
 
     def _export_reportlab(self, docx_path: str, pdf_path: str, logger=None) -> bool:
         """Fallback export using reportlab (cross-platform, limited features)"""

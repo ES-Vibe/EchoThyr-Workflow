@@ -191,8 +191,22 @@ if __name__ == '__main__':
         format='%(asctime)s [%(levelname)s] %(message)s'
     )
 
-    # Charger les patients depuis le CSV
-    csv_path = r"C:\Users\Emeric\Downloads\export_rdv_2026-01-06-2026-01-06.csv"
+    # Trouver le fichier CSV le plus récent
+    def find_latest_csv():
+        from pathlib import Path
+        import os
+        downloads = os.path.expanduser('~/Downloads')
+        csv_files = list(Path(downloads).glob('export_rdv_*.csv'))
+        if not csv_files:
+            return None
+        csv_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        return str(csv_files[0])
+
+    csv_path = find_latest_csv()
+    if not csv_path:
+        print("ERREUR: Aucun fichier CSV trouvé dans Downloads", flush=True)
+        sys.exit(1)
+    print(f"Fichier CSV chargé: {csv_path}", flush=True)
 
     def get_patients():
         parser = DoctolibParser(csv_path)
@@ -202,7 +216,7 @@ if __name__ == '__main__':
     # Créer et démarrer le serveur
     server = WorklistServer(
         ae_title="WORKLIST",
-        port=4242,
+        port=4244,  # Changed from 4242 due to Windows firewall blocking
         patients_provider=get_patients
     )
 

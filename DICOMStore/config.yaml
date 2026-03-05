@@ -10,7 +10,7 @@ server:
 
 storage:
   # Dossier racine pour stocker les images DICOM
-  root_path: "C:/Users/Emeric/Desktop/Claude/DICOMStore/DICOM_Archive"
+  root_path: "C:/Users/TEST/Desktop/Claude/DICOMStore/DICOM_Archive"
 
   # Organisation des fichiers: patient/date/series
   # Variables disponibles: {patient_id}, {patient_name}, {study_date}, {modality}, {series_number}

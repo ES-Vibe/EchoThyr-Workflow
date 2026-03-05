@@ -13,7 +13,13 @@ from dataclasses import dataclass, field
 class Config:
     """Application configuration"""
 
-    # Paths
+    # DICOM Mode
+    dicom_mode: bool = False  # true = DICOM mode, false = legacy JPG mode
+    dicom_source_dir: str = ""  # DICOM Archive folder
+    jpeg_quality: int = 85  # JPEG compression quality (1-100)
+    jpeg_max_width: int = 1200  # Max width for converted JPEG
+
+    # Paths (legacy mode)
     source_dir: str = "C:\\EchoThyr\\export"
     template_path: str = "C:\\EchoThyr\\Modele_Echo.docx"
     log_dir: str = "C:\\EchoThyr\\logs"
@@ -79,10 +85,15 @@ class Config:
 
         valid = True
 
-        # Check source directory
-        if not Path(self.source_dir).exists():
-            logger.error(f"Source directory not found: {self.source_dir}")
-            valid = False
+        # Check source directory (depends on mode)
+        if self.dicom_mode:
+            if not self.dicom_source_dir or not Path(self.dicom_source_dir).exists():
+                logger.error(f"DICOM source directory not found: {self.dicom_source_dir}")
+                valid = False
+        else:
+            if not Path(self.source_dir).exists():
+                logger.error(f"Source directory not found: {self.source_dir}")
+                valid = False
 
         # Check template
         if not Path(self.template_path).exists():
