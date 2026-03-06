@@ -193,6 +193,47 @@ class HybridMatcher:
                                f"W={sr_set.width_cm:.2f}cm L={sr_set.length_cm:.2f}cm "
                                f"Vol={sr_set.volume_ml:.2f}ml")
 
+        # Pass 5: OCR-only nodules (not matched to any SR set)
+        # When a nodule image has 3 dimensions from OCR but no corresponding SR measurement,
+        # create a nodule entry with volume calculated from the ellipsoid formula
+        import math
+        all_matched_ocr = {id(ocr) for _, ocr in matched_pairs}
+        all_remaining_ocr = list(matchable_by_volume) + list(matchable_by_dims)
+        for ocr in all_remaining_ocr:
+            if id(ocr) in all_matched_ocr:
+                continue
+            if not ocr.nodule or ocr.is_isthmus:
+                continue
+            if len(ocr.dimensions_cm) < 3:
+                continue
+
+            side = "Rt" if ocr.side == "RT" else ("Lt" if ocr.side == "LT" else "")
+            try:
+                nodule_id = int(ocr.nodule)
+            except ValueError:
+                nodule_id = len(sr_report.nodules) + 1
+
+            # Dimensions in mm (OCR gives cm)
+            dims_mm = sorted(ocr.dimensions_cm, reverse=True)[:3]
+            h_mm, w_mm, l_mm = dims_mm[0] * 10, dims_mm[1] * 10, dims_mm[2] * 10
+
+            # Ellipsoid volume: V = π/6 × H × W × L (in ml, from cm)
+            vol_ml = (math.pi / 6) * dims_mm[0] * dims_mm[1] * dims_mm[2]
+
+            nodule = NoduleMeasurement(
+                nodule_id=nodule_id,
+                side=side,
+                height=h_mm,
+                width=w_mm,
+                length=l_mm,
+                volume=vol_ml
+            )
+            sr_report.nodules.append(nodule)
+            if logger:
+                logger.info(f"Nodule N{nodule_id} ({side}) from OCR only: "
+                           f"{h_mm:.1f}x{w_mm:.1f}x{l_mm:.1f}mm "
+                           f"vol={vol_ml:.2f}ml (calculated)")
+
         # Log unmatched SR sets
         if unmatched_sr and logger:
             for sr_set in unmatched_sr:
