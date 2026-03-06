@@ -31,19 +31,31 @@ Cette suite intègre 3 projets complémentaires formant un workflow médical com
   │ (Port 4242)  │                                           │DICOM_Archive/│
   └──────────────┘                                           └──────┬───────┘
                                                                     │
-  4. TRAITEMENT OCR & GÉNÉRATION CR                                 │
-  ┌──────────────────────────────────────────────────────────────┐ │
-  │              EchoThyr-Python (Surveillance)                   │ │
-  │  ┌────────────┐   OCR    ┌──────────┐   Generate  ┌────────┐ │ │
-  │  │ Tesseract  │◄─────────│  Images  │◄────────────│ Watch  │◄┘ │
-  │  │  Engine    │          │ Processor│             │ Folder │   │
-  │  └─────┬──────┘          └──────────┘             └────────┘   │
-  │        │ Mesures                                                │
-  │        ▼                                                        │
-  │  ┌────────────┐                                                │
-  │  │   Word/PDF │                                                │
-  │  │  Generator │                                                │
-  │  └────────────┘                                                │
+  4. TRAITEMENT & GÉNÉRATION CR                                      │
+  ┌──────────────────────────────────────────────────────────────┐   │
+  │              EchoThyr-Python (Surveillance)                   │   │
+  │                                                               │   │
+  │  ┌────────┐   DICOM    ┌───────────┐                         │   │
+  │  │ Watch  │◄───────────│  Archive  │◄────────────────────────┘   │
+  │  │ Folder │            └─────┬─────┘                             │
+  │  └────────┘                  │                                   │
+  │                    ┌─────────┴─────────┐                         │
+  │                    │                   │                          │
+  │              ┌─────▼─────┐     ┌───────▼───────┐                 │
+  │              │ SR Parser │     │  OCR Engine   │                 │
+  │              │(Structured│     │(Tesseract sur │                 │
+  │              │  Report)  │     │ pixels DICOM) │                 │
+  │              └─────┬─────┘     └───────┬───────┘                 │
+  │                    │                   │                          │
+  │              ┌─────▼───────────────────▼─────┐                   │
+  │              │     Hybrid Matcher            │                   │
+  │              │  (SR values + OCR context)    │                   │
+  │              └──────────────┬────────────────┘                   │
+  │                             │                                    │
+  │                      ┌──────▼──────┐                             │
+  │                      │  Word/PDF   │                             │
+  │                      │  Generator  │                             │
+  │                      └─────────────┘                             │
   └──────────────────────────────────────────────────────────────┘
          │
          ▼
@@ -58,7 +70,7 @@ Cette suite intègre 3 projets complémentaires formant un workflow médical com
 |--------|-------------|------|--------|
 | **[DICOMWorklist](DICOMWorklist/)** | Serveur DICOM Modality Worklist - Sync Doctolib → Échographe | 4242 | ✅ Production |
 | **[DICOMStore](DICOMStore/)** | Serveur d'archivage DICOM (PACS local) + Viewer Web | 4243 | ✅ Production |
-| **[EchoThyr-Python](EchoThyr-Python/)** | Génération automatique de CR avec OCR Tesseract | - | ✅ Production |
+| **[EchoThyr-Python](EchoThyr-Python/)** | Génération automatique de CR : hybride SR + OCR sur DICOM brut | - | ✅ Production |
 | **[legacy/EchoThyr-PowerShell](legacy/EchoThyr-PowerShell/)** | Version PowerShell historique (archivée) | - | 📦 Archived |
 
 ---
@@ -170,11 +182,22 @@ netsh advfirewall firewall add rule name="DICOM Storage" dir=in action=allow pro
 
 #### Automatique - Génération des CR
 
-Dès que les images sont archivées :
-- EchoThyr détecte les nouvelles images
-- Extrait automatiquement les mesures (OCR)
-- Génère le compte rendu Word + PDF
-- Notification sonore de fin de traitement
+Dès que les images sont archivées, EchoThyr détecte et traite automatiquement via **3 voies de détection** :
+
+| Voie | Condition | Méthode |
+|------|-----------|---------|
+| **SR-only** | Outil "Thyroid Volume" GE utilisé | Mesures directement depuis le Structured Report DICOM |
+| **Hybride SR+OCR** | Outil "Volume" générique GE utilisé | Valeurs SR + contexte OCR (côté, nodule) depuis pixels DICOM bruts |
+| **OCR-only** | Pas de SR reçu | Extraction complète par Tesseract sur pixels DICOM (pleine résolution) |
+
+Fonctionnalités :
+- **Matching hybride 4 passes** : volume, dimensions complètes, dimensions partielles + côté, isthme
+- **Détection nodules** : N1, N2... et format GE N1D/N1G (suffixe Droit/Gauche)
+- **Calcul volume** : formule ellipsoïde (pi/6 x H x W x L) si absent du SR
+- **OCR sur DICOM brut** : pixels natifs pleine résolution (pas de compression JPEG)
+- **Gestion misreads OCR** : Ni/Nl reconnus comme N1 (confusion Tesseract 1/i/l)
+- **Attente SR** : 20s après réception images (race condition échographe)
+- Génération Word (python-docx) + export PDF automatique
 
 ---
 
@@ -204,21 +227,24 @@ Claude/
 │   ├── Lancer_Viewer.bat       # Lanceur viewer web
 │   └── README.md               # Documentation détaillée
 │
-├── EchoThyr-Python/            # Génération automatique CR (v2.0 - Python)
-│   ├── main.py                 # Point d'entrée principal
+├── EchoThyr-Python/            # Génération automatique CR (v3.0 - Hybride SR+OCR)
+│   ├── main.py                 # Point d'entrée + orchestration 3 voies
 │   ├── config.yaml             # Configuration externe
 │   ├── requirements.txt        # Dépendances Python
 │   │
 │   ├── src/                    # Code source modulaire
+│   │   ├── dicom/              # Lecture DICOM native
+│   │   │   ├── dicom_reader.py # Extraction pixels + métadonnées patient
+│   │   │   └── sr_parser.py    # Parser Structured Reports GE (XML tag 0x6005,0x1010)
+│   │   ├── hybrid/             # Matching hybride SR + OCR
+│   │   │   └── matcher.py      # 4 passes : volume, dims, partiel+côté, isthme
 │   │   ├── ocr/                # Extraction mesures OCR
-│   │   │   ├── tesseract_engine.py
-│   │   │   └── image_processor.py
+│   │   │   └── tesseract_engine.py  # OCR sur PIL Image (DICOM brut)
 │   │   ├── document/           # Génération Word/PDF
-│   │   │   ├── word_generator.py
-│   │   │   └── pdf_exporter.py
+│   │   │   ├── word_generator.py    # python-docx (template replacement)
+│   │   │   └── pdf_exporter.py      # Export PDF via COM Word
 │   │   ├── monitor/            # Surveillance dossiers
 │   │   │   └── folder_watcher.py
-│   │   ├── ml/                 # Préparé pour IA/ML
 │   │   └── utils/              # Utilitaires
 │   │       ├── logger.py
 │   │       ├── config.py
@@ -306,67 +332,68 @@ logging:
 
 ## 🔗 Intégration DICOM → EchoThyr
 
-### Workflow actuel (manuel)
+### Workflow automatique (v3.0 - en production)
 
-1. DICOMStore archive les images DICOM
-2. DICOMStore exporte en PNG dans `DICOM_Archive/`
-3. **Étape manuelle** : Copier les PNG vers `C:\EchoThyr\export\`
-4. EchoThyr-Python détecte et traite automatiquement
+1. DICOMStore archive les images DICOM dans `DICOM_Archive/`
+2. EchoThyr surveille `DICOM_Archive/` et détecte les nouvelles études
+3. Lecture native DICOM : métadonnées patient + pixels bruts + Structured Reports
+4. Matching hybride SR+OCR pour classification automatique (lobes, nodules, isthme)
+5. Génération automatique du compte rendu Word + PDF
 
-### Intégration future (planifiée)
+**Aucune intervention manuelle nécessaire** entre l'envoi des images depuis l'échographe et la génération du CR.
 
-**Version 3.0 - Intégration native DICOM** :
-- EchoThyr lit directement depuis `DICOM_Archive/`
-- Parsing métadonnées DICOM (nom, prénom, date)
-- Pas de copie manuelle nécessaire
-- Liaison automatique Worklist → Store → CR
+### Architecture de détection
 
-Module `EchoThyr-Python/src/dicom/` à créer :
-```python
-# src/dicom/dicom_reader.py
-- Lecture fichiers DICOM depuis archive
-- Extraction métadonnées patient
-- Conversion DICOM → images pour OCR
-
-# src/dicom/archive_watcher.py
-- Surveillance DICOM_Archive/
-- Détection nouvelles études
-- Déclenchement auto génération CR
+```
+Échographe GE Logiq P9
+    │
+    ├── Images DICOM (US) ──► DICOMStore (C-STORE, port 4243)
+    │                              │
+    └── Structured Report ─────► DICOM_Archive/Patient/Date/SR_1/
+                                   │
+                            EchoThyr détecte ──► SR Parser (mesures précises)
+                                   │                    +
+                                   │              OCR Engine (contexte: côté, nodule)
+                                   │                    │
+                                   │              Hybrid Matcher (4 passes)
+                                   │                    │
+                                   └──────────────► Word + PDF
 ```
 
 ---
 
 ## 🎯 Roadmap / Évolutions futures
 
-### Court terme (v2.1)
+### Réalisé (v3.0 - en production)
 
-- [ ] **Interface graphique WPF** - Révision manuelle mesures OCR
+- [x] **Lecture DICOM native** - Direct depuis `DICOM_Archive/`
+- [x] **SR Parser** - Extraction mesures depuis Structured Reports GE
+- [x] **Matching hybride SR+OCR** - 4 passes (volume, dimensions, partiel, isthme)
+- [x] **OCR sur pixels DICOM bruts** - Pleine résolution, sans compression
+- [x] **Détection nodules avancée** - N1D/N1G, gestion misreads OCR
+- [x] **Calcul volume ellipsoïde** - Quand absent du SR
+- [x] **Génération python-docx** - Remplace COM Word (plus fiable)
+- [x] **Anti-doublon worklist** - Tue l'ancienne instance au démarrage
+
+### Court terme (v3.1)
+
+- [ ] **Interface graphique** - Révision manuelle mesures avant validation CR
 - [ ] **Statistiques mensuelles** - Nombre CR, taux succès, temps moyen
-- [ ] **Notification email** - Envoi automatique CR au médecin/patient
-- [ ] **DICOMStore Viewer Pro** - Amélioration interface web viewer
-  - Annotations sur images
-  - Mesures interactives
-  - Export multi-format (JPEG, TIFF, PDF)
-
-### Moyen terme (v3.0 - Intégration DICOM native)
-
-- [ ] **EchoThyr : Lecture DICOM native** - Direct depuis `DICOM_Archive/`
 - [ ] **Support multi-modalités** - Echo thyroïde, sein, foie, etc.
 - [ ] **Templates multiples** - CR personnalisés par type examen
-- [ ] **API REST** - Communication inter-services
-  - `POST /worklist/patients` - Ajouter patient
-  - `GET /store/studies/{patient_id}` - Récupérer études
-  - `POST /echothyr/generate` - Générer CR à la demande
 
-### Long terme (v4.0 - Intelligence Artificielle)
+### Moyen terme (v4.0)
+
+- [ ] **API REST** - Communication inter-services
+- [ ] **Notification email** - Envoi automatique CR
+- [ ] **DICOMStore Viewer Pro** - Annotations, mesures interactives
+
+### Long terme (v5.0 - Intelligence Artificielle)
 
 - [ ] **Détection anomalies IA/ML** (TensorFlow, PyTorch)
   - Classification nodules (bénin/malin)
-  - Segmentation automatique thyroïde
   - Score Ti-RADS automatique
-  - Détection calcifications, vascularisation
-- [ ] **OCR avancé** - Transformers (BERT, GPT-based OCR)
-- [ ] **Super-resolution images** - Amélioration qualité (ESRGAN)
+  - Segmentation automatique thyroïde
 - [ ] **Prédiction diagnostics** - Aide à la décision médicale
 
 ---
@@ -377,16 +404,19 @@ Module `EchoThyr-Python/src/dicom/` à créer :
 
 | Opération | Temps moyen | Notes |
 |-----------|-------------|-------|
-| Worklist Query | < 100 ms | Réponse quasi-instantanée |
+| Worklist Query (C-FIND) | < 100 ms | Réponse quasi-instantanée |
 | Réception image DICOM (C-STORE) | 200-500 ms/image | Dépend taille image |
-| Export PNG depuis DICOM | 100-300 ms/image | Conversion Pillow |
-| OCR extraction mesures | 1-2 s/image | Tesseract PSM 6 |
-| Génération CR Word + PDF | 3-5 s | Includes Word COM + docx2pdf |
+| SR Parsing (Structured Report) | < 50 ms | Extraction XML GE tag 0x6005,0x1010 |
+| OCR sur DICOM brut (PIL Image) | 1-2 s/image | Tesseract PSM 6, pleine résolution |
+| Matching hybride (4 passes) | < 10 ms | Volume + dimensions + partiel + isthme |
+| Génération CR Word + PDF | 3-5 s | python-docx + export PDF COM Word |
 
 ### Optimisations appliquées
 
 - **DICOMStore** : Threading pour C-STORE simultanés
-- **EchoThyr** : Cache images redimensionnées (préfixe `$`)
+- **EchoThyr** : OCR sur pixels DICOM bruts (pas de compression JPEG intermédiaire)
+- **EchoThyr** : Attente 20s pour SR (race condition échographe GE)
+- **Worklist** : Anti-doublon automatique au démarrage (kill ancien processus)
 - **Worklist** : Parsing CSV une seule fois au démarrage
 - **Logging** : Rotation quotidienne, pas de surcharge I/O
 
@@ -435,13 +465,15 @@ taskkill /PID [PID] /F
 ### OCR n'extrait aucune mesure
 
 **Solutions** :
-1. Vérifier qualité images (résolution > 800px)
-2. Consulter logs DEBUG : `EchoThyr-Python/logs/`
-3. Tester Tesseract manuellement :
-   ```cmd
-   tesseract image.jpg stdout --psm 6 -l eng
-   ```
-4. Vérifier format mesures : `XX.X cm` ou `XX x YY mm`
+1. Vérifier les logs DEBUG : `C:\EchoThyr\logs\`
+2. Vérifier que Tesseract est installé : `tesseract --version`
+3. L'OCR fonctionne sur les pixels DICOM bruts (pleine résolution) - pas besoin de PNG/JPEG
+4. Nodules non détectés ? Vérifier le format de légende (N1, N1D, N1G supportés)
+
+### Nodules/mesures classés comme lobe au lieu de nodule
+
+**Cause** : Le format de légende GE n'est pas reconnu par le regex OCR
+**Solutions** : Vérifier dans les logs la ligne `OCR context:` - le champ `nodule=` doit contenir un chiffre
 
 ### Pour plus d'aide
 
