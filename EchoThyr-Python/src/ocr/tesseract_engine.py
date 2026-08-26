@@ -30,6 +30,7 @@ class OCRContext:
     dimensions_cm: List[float]  # Dimension values in cm (e.g., [2.20, 4.63, 1.65])
     volume_ml: float = 0.0     # Volume in ml if shown on image
     has_measurements: bool = True  # False for images without measurement overlay
+    position_text: str = ""    # Position tokens from legend (e.g., "SUP EXT POST")
 
 
 class TesseractEngine:
@@ -240,9 +241,20 @@ class TesseractEngine:
 
             has_measurements = len(dimensions_cm) > 0 or volume_ml > 0
 
+            # Extract position tokens (between N{digit} and A{digits}%)
+            position_text = ""
+            if nodule:
+                pos_match = re.search(
+                    r'N\d+[DG]?\s+(.*?)\s*A[O0]?\d*%',
+                    legend_text, re.IGNORECASE
+                )
+                if pos_match:
+                    position_text = pos_match.group(1).strip()
+
             if logger:
                 logger.debug(f"OCR context: side={side}, nodule={nodule}, isthmus={is_isthmus}, "
-                           f"dims_cm={dimensions_cm}, vol={volume_ml}, has_meas={has_measurements}")
+                           f"dims_cm={dimensions_cm}, vol={volume_ml}, has_meas={has_measurements}, "
+                           f"pos={position_text}")
 
             return OCRContext(
                 image_path=image_path,
@@ -252,7 +264,8 @@ class TesseractEngine:
                 legend_text=legend_text,
                 dimensions_cm=dimensions_cm,
                 volume_ml=volume_ml,
-                has_measurements=has_measurements
+                has_measurements=has_measurements,
+                position_text=position_text
             )
 
         except Exception as e:

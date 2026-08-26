@@ -21,6 +21,7 @@ from src.document.pdf_exporter import PDFExporter
 from src.monitor.folder_watcher import FolderWatcher, PatientFolder
 from src.dicom.dicom_reader import DicomReader
 from src.dicom.sr_parser import SRParser
+from src.schema import PositionParser, ThyroidRenderer, ThyroidGeometry, NodulePosition
 
 VERSION = "2.2.0"  # Added SR support (no OCR needed)
 
@@ -251,13 +252,117 @@ class EchoThyrApp:
                 # Format OCR measurements as text for python-docx method
                 measurement_text = self.word_generator._format_measurements(measurements)
 
+            # --- Step 5b: Generate thyroid schema ---
+            schema_path = None
+            try:
+                # Build ThyroidGeometry from SR lobe dimensions
+                geom = ThyroidGeometry()
+                if sr_report:
+                    for key, m in sr_report.right_lobe.items():
+                        val_mm = m.value * 10 if m.unit == "cm" else m.value
+                        if 'H' in key:
+                            geom.right_height = val_mm
+                        elif 'W' in key:
+                            geom.right_width = val_mm
+                        elif 'L' in key:
+                            geom.right_length = val_mm
+                    for key, m in sr_report.left_lobe.items():
+                        val_mm = m.value * 10 if m.unit == "cm" else m.value
+                        if 'H' in key:
+                            geom.left_height = val_mm
+                        elif 'W' in key:
+                            geom.left_width = val_mm
+                        elif 'L' in key:
+                            geom.left_length = val_mm
+                    if sr_report.isthmus_mm > 0:
+                        geom.isthmus_thickness = sr_report.isthmus_mm
+                    elif sr_report.isthmus:
+                        for key, m in sr_report.isthmus.items():
+                            geom.isthmus_thickness = m.value * 10 if m.unit == "cm" else m.value
+                            break
+
+                # Collect OCR contexts for position extraction
+                # In hybrid/OCR mode, ocr_contexts may already exist
+                # In SR-only mode, run OCR on nodule images to extract position
+                nodule_ocr_contexts = []
+                if needs_hybrid and 'ocr_contexts' in locals():
+                    nodule_ocr_contexts = [c for c in ocr_contexts if c.nodule]
+                elif source == "OCR":
+                    # OCR-only: run extract_context on images
+                    for pil_img, dcm_path in raw_pil_images:
+                        ctx = self.ocr_engine.extract_context(pil_img, self.logger, image_path=dcm_path)
+                        if ctx and ctx.nodule:
+                            nodule_ocr_contexts.append(ctx)
+                else:
+                    # SR-only mode: run OCR on images to get position info for nodules
+                    if sr_report and sr_report.nodules:
+                        for pil_img, dcm_path in raw_pil_images:
+                            ctx = self.ocr_engine.extract_context(pil_img, self.logger, image_path=dcm_path)
+                            if ctx and ctx.nodule:
+                                nodule_ocr_contexts.append(ctx)
+
+                # Parse positions and build NodulePosition list
+                nodule_positions = []
+                position_parser = PositionParser()
+
+                if sr_report and sr_report.nodules:
+                    for nod_meas in sr_report.nodules:
+                        side_rt_lt = "RT" if nod_meas.side == "Rt" else "LT"
+                        # Find matching OCR context for position
+                        position_text = ""
+                        for ctx in nodule_ocr_contexts:
+                            if ctx.nodule == str(nod_meas.nodule_id) and ctx.side == side_rt_lt:
+                                position_text = ctx.position_text
+                                break
+
+                        nod_pos = position_parser.parse_position_text(
+                            position_text, nod_meas.nodule_id, side_rt_lt
+                        )
+                        # Enrich with SR dimensions
+                        nod_pos.height_mm = nod_meas.height
+                        nod_pos.width_mm = nod_meas.width
+                        nod_pos.length_mm = nod_meas.length
+                        nodule_positions.append(nod_pos)
+                else:
+                    # OCR-only: build from OCR contexts
+                    for ctx in nodule_ocr_contexts:
+                        nod_id = int(ctx.nodule) if ctx.nodule.isdigit() else 1
+                        nod_pos = position_parser.parse_position_text(
+                            ctx.position_text, nod_id, ctx.side
+                        )
+                        # Use OCR dimensions (cm -> mm)
+                        if len(ctx.dimensions_cm) >= 1:
+                            nod_pos.height_mm = ctx.dimensions_cm[0] * 10
+                        if len(ctx.dimensions_cm) >= 2:
+                            nod_pos.width_mm = ctx.dimensions_cm[1] * 10
+                        if len(ctx.dimensions_cm) >= 3:
+                            nod_pos.length_mm = ctx.dimensions_cm[2] * 10
+                        nod_pos.is_isthmic = ctx.is_isthmus
+                        nodule_positions.append(nod_pos)
+
+                # Render schema
+                if nodule_positions:
+                    schema_file = folder.path / "$thyroid_schema.png"
+                    renderer = ThyroidRenderer()
+                    if renderer.render(geom, nodule_positions, str(schema_file), self.logger):
+                        schema_path = str(schema_file)
+                    else:
+                        self.logger.warning("Schema rendering failed - continuing without schema")
+                else:
+                    self.logger.debug("No nodule positions found - skipping schema generation")
+
+            except Exception as e:
+                self.logger.warning(f"Schema generation failed (non-fatal): {e}")
+                schema_path = None
+
             # --- Step 6: Generate Word document ---
             success = self.word_generator.generate_report_with_text(
                 patient_info,
                 measurement_text,
                 jpeg_images,
                 str(word_path),
-                self.logger
+                self.logger,
+                schema_path=schema_path
             )
 
             if not success:

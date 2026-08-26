@@ -186,7 +186,8 @@ class WordGenerator:
         image_paths: List[str],
         output_path: str,
         logger=None,
-        max_retries: int = 2
+        max_retries: int = 2,
+        schema_path: str = None
     ) -> bool:
         """
         Generate medical report with pre-formatted measurement text (from SR)
@@ -198,6 +199,7 @@ class WordGenerator:
             output_path: Path for output DOCX file
             logger: Optional logger
             max_retries: Number of retry attempts on failure
+            schema_path: Optional path to thyroid schema PNG
 
         Returns:
             True if successful, False otherwise
@@ -222,7 +224,8 @@ class WordGenerator:
 
             result = self._generate_report_internal(
                 patient_info, measurement_text, image_paths,
-                output_path, template_path, logger
+                output_path, template_path, logger,
+                schema_path=schema_path
             )
             if result:
                 return True
@@ -362,7 +365,8 @@ class WordGenerator:
         image_paths: List[str],
         output_path: str,
         template_path: Path,
-        logger=None
+        logger=None,
+        schema_path: str = None
     ) -> bool:
         """Internal method to generate the report using python-docx only (no COM)"""
         try:
@@ -395,6 +399,33 @@ class WordGenerator:
                             for placeholder, value in replacements.items():
                                 if placeholder in paragraph.text:
                                     self._replace_in_paragraph(paragraph, placeholder, value)
+
+            # Step 1b: Insert thyroid schema if available
+            if schema_path and Path(schema_path).exists():
+                schema_inserted = False
+                # Try to find and replace [SCHEMA] placeholder
+                for paragraph in doc.paragraphs:
+                    if "[SCHEMA]" in paragraph.text:
+                        # Clear the placeholder text
+                        for run in paragraph.runs:
+                            run.text = ""
+                        # Insert schema image in this paragraph
+                        run = paragraph.add_run()
+                        run.add_picture(schema_path, width=Inches(5.0))
+                        schema_inserted = True
+                        if logger:
+                            logger.info("Schema inserted at [SCHEMA] placeholder")
+                        break
+
+                if not schema_inserted:
+                    # No placeholder found: insert schema after the last paragraph
+                    # (before the image page break)
+                    doc.add_paragraph("")  # Spacing
+                    p = doc.add_paragraph()
+                    run = p.add_run()
+                    run.add_picture(schema_path, width=Inches(5.0))
+                    if logger:
+                        logger.info("Schema inserted at end of document (no [SCHEMA] placeholder found)")
 
             # Step 2: Add images at the end
             if image_paths:
