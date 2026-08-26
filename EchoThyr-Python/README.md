@@ -1,38 +1,46 @@
-# 🐍 EchoThyr Automation - Version Python 2.0.0
+# 🐍 EchoThyr Automation - Version Python 2.3.0
 
 Version Python moderne du système d'automatisation de comptes rendus d'échographie thyroïdienne.
 
-## 🎯 Pourquoi Python ?
+## 🎯 Fonctionnalités
 
-Cette version Python offre :
-- ✅ **Architecture modulaire** : Code mieux organisé et maintenable
-- ✅ **Prêt pour IA/ML** : Compatible TensorFlow, scikit-learn, OpenCV
-- ✅ **Tests unitaires** : pytest pour qualité code
+- ✅ **3 modes de détection** : SR pur, hybride SR+OCR, OCR seul
+- ✅ **Structured Reports GE** : Parsing du XML propriétaire GE (tag 6005,1010)
+- ✅ **Schéma thyroïdien automatique** : Vue frontale + coupe transversale avec nodules positionnés
+- ✅ **Architecture modulaire** : Code organisé en modules (OCR, DICOM, document, schéma)
 - ✅ **Configuration YAML** : Paramétrage facile
-- ✅ **Cross-platform** : Fonctionne Windows/Linux/Mac (avec adaptations)
-- ✅ **Évolutivité** : Base solide pour futures fonctionnalités
+- ✅ **Prêt pour IA/ML** : Compatible TensorFlow, scikit-learn, OpenCV
 
 ## 📁 Structure du projet
 
 ```
-CR-ECHO-AUTO/
-├── main.py                    # Point d'entrée principal
+EchoThyr-Python/
+├── main.py                    # Point d'entrée principal + pipeline 3 voies
 ├── config.yaml                # Configuration
 ├── requirements.txt           # Dépendances Python
 │
 ├── src/                       # Code source modulaire
+│   ├── dicom/                 # Lecture DICOM + Structured Reports
+│   │   ├── dicom_reader.py   # Lecture fichiers DICOM, conversion JPEG
+│   │   └── sr_parser.py      # Parser SR GE (ThyroidReport, NoduleMeasurement)
+│   ├── ocr/                   # Extraction OCR
+│   │   ├── tesseract_engine.py  # OCRContext + extract_context()
+│   │   └── image_processor.py
+│   ├── hybrid/                # Matching hybride SR + OCR
+│   │   └── matcher.py        # HybridMatcher
+│   ├── schema/                # Génération schéma thyroïdien
+│   │   ├── models.py         # NodulePosition, ThyroidGeometry, enums
+│   │   ├── position_parser.py # Extraction position depuis légendes OCR
+│   │   └── thyroid_renderer.py # Rendu Pillow (vue frontale + transversale)
+│   ├── document/              # Génération documents
+│   │   ├── word_generator.py # Génération Word avec schéma intégré
+│   │   └── pdf_exporter.py
+│   ├── monitor/               # Surveillance dossiers
+│   │   └── folder_watcher.py
 │   ├── utils/                 # Utilitaires
 │   │   ├── logger.py         # Logging avec couleurs
 │   │   ├── config.py         # Gestion configuration
 │   │   └── notifications.py  # Notifications audio/visuelles
-│   ├── ocr/                   # Extraction OCR
-│   │   ├── tesseract_engine.py
-│   │   └── image_processor.py
-│   ├── document/              # Génération documents
-│   │   ├── word_generator.py
-│   │   └── pdf_exporter.py
-│   ├── monitor/               # Surveillance dossiers
-│   │   └── folder_watcher.py
 │   └── ml/                    # Future IA/ML (préparé)
 │       └── anomaly_detector.py
 │
@@ -47,8 +55,8 @@ CR-ECHO-AUTO/
 ### 1. Prérequis
 
 - **Python 3.8+** : [Télécharger](https://www.python.org/downloads/)
-- **Tesseract OCR** : Déjà installé (même version que PowerShell)
-- **Microsoft Word** : Pour génération documents
+- **Tesseract OCR** : Pour extraction OCR des légendes échographiques
+- **Microsoft Word** : Pour génération documents (optionnel si python-docx suffit)
 
 ### 2. Installation dépendances
 
@@ -57,7 +65,7 @@ CR-ECHO-AUTO/
 pip install -r requirements.txt
 
 # Installation minimale (production)
-pip install pytesseract Pillow python-docx watchdog PyYAML colorlog plyer
+pip install pytesseract Pillow python-docx pydicom watchdog PyYAML colorlog plyer
 ```
 
 ### 3. Configuration
@@ -112,129 +120,90 @@ enable_beep: true
 enable_banner: true
 ```
 
-## 🔍 Différences avec version PowerShell
+## 🔬 Pipeline de traitement (3 voies)
 
-| Fonctionnalité | PowerShell (v1.x) | Python (v2.0.0) |
-|----------------|-------------------|-----------------|
-| **Architecture** | Monolithique | Modulaire (OOP) |
-| **Configuration** | Hardcodée | YAML externe |
-| **Logs** | Fichiers texte | Logging structuré |
-| **Tests** | ❌ Aucun | ✅ pytest ready |
-| **Extensibilité** | Limitée | ✅ Modules IA/ML |
-| **Portabilité** | Windows only | Multi-plateformes |
-| **Performance** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
+Le pipeline détecte automatiquement le mode optimal selon les données disponibles :
 
-**Fonctionnalités identiques :**
-- Extraction OCR mesures
-- Génération Word/PDF
-- Notifications audio/visuelles
-- Monitoring automatique
-- Logging quotidien
+| Mode | Condition | Mesures | Position nodules |
+|------|-----------|---------|------------------|
+| **SR pur** | SR + outil thyroïde GE | Depuis le SR | OCR légendes pour position |
+| **Hybride** | SR + outil Volume générique | SR (valeurs) + OCR (contexte) | OCR légendes |
+| **OCR seul** | Pas de SR | OCR complet | OCR légendes |
 
-## 🧪 Tests (à venir)
+### Étapes du pipeline DICOM
 
-```bash
-# Lancer les tests unitaires
-pytest tests/
+1. **Analyse SR** : Détection et parsing du Structured Report GE
+2. **Info patient** : Extraction depuis SR ou DICOM header
+3. **Conversion JPEG** : DICOM → JPEG pour le document Word
+4. **Mesures** : Extraction selon le mode détecté (SR/hybride/OCR)
+5. **Schéma thyroïdien** : Génération automatique du schéma anatomique
+6. **Document Word** : Génération du compte-rendu avec schéma intégré
+7. **Export PDF** : Conversion Word → PDF (optionnel)
 
-# Avec couverture de code
-pytest --cov=src tests/
-```
+## 🖼️ Schéma thyroïdien automatique
 
-## 🔮 Roadmap IA/ML
+Le module `src/schema/` génère un schéma anatomique montrant la position et la taille proportionnelle des nodules :
 
-La version Python est prête pour :
+- **Vue frontale (coronale)** : Trachée, lobes proportionnels aux mesures, isthme, nodules positionnés (S/M/I, lat/méd)
+- **Coupe transversale (axiale)** : Profondeur antérieur/postérieur des nodules
+- **Légende** : Couleurs distinctes par nodule avec dimensions
 
-```python
-# Future: Détection automatique anomalies
-from src.ml.anomaly_detector import ThyroidAnomalyDetector
+### Positionnement des nodules
 
-detector = ThyroidAnomalyDetector()
-results = detector.predict(image_path)
-# → {nodule: True, malignancy_score: 0.72, ...}
-```
+La position est extraite des légendes de l'échographe GE (format : `RT THYROID LOBE N1 SUP EXT POST A0%`) :
 
-**Fonctionnalités ML planifiées :**
-- Classification nodules (bénin/malin)
-- Segmentation automatique zones d'intérêt
-- Amélioration qualité images (super-resolution)
-- Détection anomalies thyroïdiennes
-- OCR avancé (Transformers au lieu de Tesseract)
+| Axe | Tokens reconnus |
+|-----|----------------|
+| Vertical | SUP, MOY/MID, INF |
+| Profondeur | ANT, POST |
+| Latéral | EXT/LAT, INT/MED |
+| Isthme | ISTHME, ISTHMUS |
+
+Le parser tolère les erreurs OCR courantes (`OOST` → POST, `P0ST` → POST).
+
+### Rendu
+
+- Technique de supersampling 3x + LANCZOS pour un rendu anti-aliasé de qualité
+- Convention anatomique : lobe droit affiché à gauche (vue de face du patient)
+- Le schéma est inséré au placeholder `[SCHEMA]` dans le template Word, ou en fin de document
 
 ## 🐛 Dépannage
 
 ### Python non trouvé
 
 ```bash
-# Vérifier installation Python
 python --version
-
 # Ajouter Python au PATH si nécessaire
-# Windows: Panneau de configuration → Système → Variables d'environnement
 ```
 
 ### Dépendances manquantes
 
 ```bash
-# Réinstaller toutes les dépendances
 pip install --upgrade -r requirements.txt
 ```
 
-### Import errors
+### Schéma non généré
 
-```bash
-# S'assurer d'être dans le bon dossier
-cd C:\Users\Emeric\Desktop\Claude
-python main.py
-```
-
-## 📊 Performances
-
-**Benchmarks typiques (même machine que PowerShell) :**
-- Traitement image OCR : ~2-3 secondes
-- Génération Word : ~1 seconde
-- Export PDF : ~2 secondes
-- **Total par patient** : ~10-15 secondes
-
-## 🤝 Migration depuis PowerShell
-
-**Les deux versions peuvent coexister !**
-
-1. **Tester Python** : Utilisez `Lancer_EchoThyr_Python.bat`
-2. **Comparer résultats** : Traiter même dossier avec les 2 versions
-3. **Basculer** : Quand confiant, utiliser uniquement Python
-4. **Garder legacy** : PowerShell reste dans `legacy/` pour référence
+Le schéma nécessite des nodules avec des données de position. Vérifier :
+- Que les images DICOM contiennent des légendes avec format GE (`N1 SUP EXT POST A0%`)
+- Que Tesseract OCR fonctionne correctement
+- L'échec du schéma est non-fatal : le rapport est généré sans schéma
 
 ## 📝 Logs
 
-Même emplacement que PowerShell :
 ```
-C:\EchoThyr\logs\echothyr_python_2026-01-05.log
+C:\EchoThyr\logs\echothyr_python_YYYY-MM-DD.log
 ```
 
 Format :
 ```
-[2026-01-05 14:32:15] [INFO] EchoThyr Automation started - Version 2.0.0
-[2026-01-05 14:32:15] [SUCCESS] All prerequisites validated successfully
-[2026-01-05 14:32:30] [INFO] Found 1 new folder(s) to process
+[INFO] Processing DICOM study: PATIENT_NAME (12 files)
+[INFO] Mode SR: outil thyroide specifique detecte
+[INFO] Thyroid schema generated: $thyroid_schema.png
+[INFO] Word document generated: CR ECHO THYR NOM Prenom DD-MM-YYYY.docx
 ```
-
-## 🌟 Avantages version Python
-
-1. **Maintenabilité** : Code modulaire, facile à modifier
-2. **Testabilité** : Tests unitaires pour chaque module
-3. **Évolutivité** : Ajout IA/ML sans refactoring
-4. **Communauté** : Plus de devs Python que PowerShell
-5. **Librairies** : Écosystème riche (ML, vision, data science)
-
-## ⚠️ Note importante
-
-Cette version Python (2.0.0) est **100% compatible fonctionnellement** avec la version PowerShell (1.0.0).
-
-Tous les CR générés sont identiques. Seule l'implémentation interne change.
 
 ---
 
-**Version** : 2.0.0
-**Date** : 2026-01-05
+**Version** : 2.3.0
 **Licence** : MIT
