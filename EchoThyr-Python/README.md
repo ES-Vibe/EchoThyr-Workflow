@@ -155,8 +155,26 @@ proportionnelle des nodules. La géométrie est issue du design
 - **Croix d'orientation** : une sous chaque vue
 
 Les coordonnées, couleurs et tailles de police sont figées par le design et ne
-doivent pas être retouchées sans reprendre celui-ci. Seuls les nodules sont
-dimensionnés à partir des mesures (`PX_PER_MM = 3`).
+doivent pas être retouchées sans reprendre celui-ci.
+
+### Taille des nodules
+
+Les nodules sont dimensionnés **relativement au lobe** : un nodule occupe sur le
+schéma la même fraction du lobe que dans la réalité. L'échelle est donc déduite
+des mesures (`ThyroidGeometry`) et non d'une constante — un nodule de 15 mm
+paraît deux fois plus petit dans un lobe de 90 mm que dans un lobe de 45 mm.
+
+| Vue | Axe horizontal | Axe vertical |
+|---|---|---|
+| Vue de face | transverse / largeur du lobe | craniocaudal / hauteur du lobe |
+| Coupe longitudinale | craniocaudal / hauteur du lobe | antéro-postérieur / épaisseur AP |
+
+Le contour dessiné est mesuré par rastérisation du path, ce qui garde l'échelle
+juste si le tracé est modifié. Les ellipses sont recentrées sur la place
+réellement disponible à leur niveau (le lobe est plus étroit aux pôles qu'en son
+milieu). Un nodule plus gros que le lobe déborde volontairement : le contour est
+redessiné par-dessus pour rendre le dépassement explicite plutôt que de mentir
+sur la taille. Si une mesure de lobe manque, un repli 45 × 15 × 15 mm s'applique.
 
 ### Positionnement des nodules
 

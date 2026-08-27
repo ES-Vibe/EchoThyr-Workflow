@@ -20,8 +20,8 @@ doivent pas etre retouchees sans reprendre le design.
 
 import math
 import re
-from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
+from functools import lru_cache
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -87,9 +87,19 @@ CUT = {
 CUT_LEVEL_DX = {"SUP": -52.0, "MOY": 0.0, "INF": 52.0}
 CUT_DEPTH_DY = {"ANT": -18.0, "POST": 20.0, "NA": 0.0}
 
-PX_PER_MM = 3.0          # echelle des ellipses de nodules
-MIN_NODULE_R = 5.0       # rayon plancher quand la mesure est absente
+# Echelle des nodules : deduite des mesures du lobe, pas d'une constante.
+# Un nodule occupe sur le schema la meme fraction du lobe que dans la realite.
+# (Le handoff figeait PX_PER_MM = 3, ce qui donnait la meme taille a l'ecran
+#  quelle que soit la taille du lobe.)
+FACE_MIDLINE = 500.0         # separe les deux lobes dans le repere auteur
+MIN_NODULE_R = 5.0           # rayon plancher quand la mesure est absente
+MAX_NODULE_FRACTION = 1.1    # un nodule peut deborder legerement du lobe
 NODULE_STROKE_W = 1.5
+
+# Valeurs de repli quand une dimension de lobe manque (mm)
+FALLBACK_LOBE_H = 45.0       # craniocaudal
+FALLBACK_LOBE_W = 15.0       # transverse
+FALLBACK_LOBE_AP = 15.0      # antero-posterieur
 
 PALETTE = [
     ("#D74646", "#A51E1E"),   # N1 rouge
@@ -144,12 +154,128 @@ def _dims(nod: NodulePosition) -> Tuple[float, float, float]:
     return (nod.height_mm, nod.length_mm, nod.width_mm)
 
 
-def _radius(mm: float) -> float:
-    return max(MIN_NODULE_R, mm * PX_PER_MM / 2) if mm > 0 else MIN_NODULE_R
-
-
 def _colors(nodule_id: int) -> Tuple[str, str]:
     return PALETTE[(nodule_id - 1) % len(PALETTE)]
+
+
+def _mm(value: float, fallback: float) -> float:
+    """Mesure de lobe exploitable, sinon valeur de repli."""
+    return value if value and value > 0 else fallback
+
+
+def _radius(mm: float, px_per_mm: float, limit_px: float) -> float:
+    """Demi-axe d'un nodule, plancher si la mesure manque, plafond au lobe."""
+    if mm <= 0:
+        return MIN_NODULE_R
+    return max(MIN_NODULE_R, min(limit_px * MAX_NODULE_FRACTION, mm * px_per_mm / 2))
+
+
+@lru_cache(maxsize=2)
+def _face_lobe_profile(pyramidal: bool):
+    """Analyse rasterisee d'UN lobe de la vue de face (moitie x < mediane).
+
+    Le schema etant symetrique, seul le lobe de gauche est mesure. Renvoie
+    (spans, y_min, y_max, largeur_max, hauteur) ou `spans` donne pour chaque
+    y auteur entier le couple (x_gauche, x_droit) du lobe a ce niveau.
+
+    La largeur maximale ignore les lignes ou le lobe rejoint l'isthme, sinon
+    la bande isthmique la gonflerait jusqu'a la ligne mediane.
+    """
+    pts = flatten_path(FACE_PATH_PYRAMIDAL if pyramidal else FACE_PATH_PLAIN_V)
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    x0, y0 = math.floor(min(xs)), math.floor(min(ys))
+    w = math.ceil(max(xs)) - x0 + 1
+    h = math.ceil(max(ys)) - y0 + 1
+
+    mask = Image.new("1", (w, h), 0)
+    ImageDraw.Draw(mask).polygon([(x - x0, y - y0) for x, y in pts], fill=1)
+    px = mask.load()
+    mid = int(round(FACE_MIDLINE - x0))
+
+    spans = {}
+    y_min = y_max = None
+    best_w = 0
+    for j in range(h):
+        run = cur = 0
+        run_end = -1
+        for i in range(mid):
+            if px[i, j]:
+                cur += 1
+                if cur > run:
+                    run, run_end = cur, i
+            else:
+                cur = 0
+        if run == 0:
+            continue
+        y = j + y0
+        spans[y] = (float(run_end - run + 1 + x0), float(run_end + x0))
+        if y_min is None:
+            y_min = y
+        y_max = y
+        if run_end < mid - 1:          # lobe separe de l'isthme sur cette ligne
+            best_w = max(best_w, run)
+
+    return (spans, float(y_min), float(y_max),
+            float(best_w), float(y_max - y_min + 1))
+
+
+def _face_lobe_extents(pyramidal: bool) -> Tuple[float, float]:
+    """(largeur max, hauteur) en px auteur d'UN lobe dans la vue de face."""
+    _, _, _, width, height = _face_lobe_profile(pyramidal)
+    return width, height
+
+
+def _face_lobe_span(y: float, side: str,
+                    pyramidal: bool) -> Optional[Tuple[float, float]]:
+    """Bornes horizontales du lobe `side` au niveau `y` (repere auteur)."""
+    spans, y_min, y_max, _, _ = _face_lobe_profile(pyramidal)
+    span = spans.get(int(round(min(max(y, y_min), y_max))))
+    if span is None:
+        return None
+    left, right = span
+    if side == "G":                    # symetrique par rapport a la mediane
+        return (2 * FACE_MIDLINE - right, 2 * FACE_MIDLINE - left)
+    return span
+
+
+def _fit(center: float, radius: float, lo: float, hi: float) -> float:
+    """Recentre `center` pour que [center-r, center+r] tienne dans [lo, hi]."""
+    if 2 * radius >= hi - lo:
+        return (lo + hi) / 2
+    return min(max(center, lo + radius), hi - radius)
+
+
+def _face_px_per_mm(geometry: ThyroidGeometry, side: str,
+                    pyramidal: bool) -> Tuple[float, float]:
+    """(horizontal, vertical) px auteur par mm pour un lobe en vue de face.
+
+    Horizontal = transverse, vertical = craniocaudal.
+    """
+    w_px, h_px = _face_lobe_extents(pyramidal)
+    if side == "D":
+        w_mm = _mm(geometry.right_width, FALLBACK_LOBE_W)
+        h_mm = _mm(geometry.right_height, FALLBACK_LOBE_H)
+    else:
+        w_mm = _mm(geometry.left_width, FALLBACK_LOBE_W)
+        h_mm = _mm(geometry.left_height, FALLBACK_LOBE_H)
+    return w_px / w_mm, h_px / h_mm
+
+
+def _cut_px_per_mm(geometry: ThyroidGeometry,
+                   side: str) -> Tuple[float, float]:
+    """(horizontal, vertical) px par mm pour une coupe longitudinale.
+
+    Horizontal = craniocaudal, vertical = antero-posterieur.
+    """
+    c = CUT[side]
+    if side == "D":
+        h_mm = _mm(geometry.right_height, FALLBACK_LOBE_H)
+        ap_mm = _mm(geometry.right_length, FALLBACK_LOBE_AP)
+    else:
+        h_mm = _mm(geometry.left_height, FALLBACK_LOBE_H)
+        ap_mm = _mm(geometry.left_length, FALLBACK_LOBE_AP)
+    return (c["rx"] * 2) / h_mm, (c["ry"] * 2) / ap_mm
 
 
 # --------------------------------------------------------------------------
@@ -233,12 +359,23 @@ def _text_baseline(draw: ImageDraw.ImageDraw, xy, s: str, font, fill,
 # Placement des nodules
 # --------------------------------------------------------------------------
 
-def face_ellipse(nod: NodulePosition) -> Tuple[float, float, float, float]:
-    """(cx, cy, rx, ry) dans le repere AUTEUR (avant la mise a l'echelle)."""
+def face_ellipse(nod: NodulePosition, geometry: ThyroidGeometry,
+                 pyramidal: bool = True) -> Tuple[float, float, float, float]:
+    """(cx, cy, rx, ry) dans le repere AUTEUR (avant la mise a l'echelle).
+
+    Les rayons sont proportionnels au lobe : un nodule occupe la meme
+    fraction du lobe sur le schema que dans la realite.
+    """
     d1, _d2, d3 = _dims(nod)
+    _spans, y_min, y_max, w_px, h_px = _face_lobe_profile(pyramidal)
 
     if nod.is_isthmic:
-        return (FACE_ISTHMUS[0], FACE_ISTHMUS[1], _radius(d3), _radius(d1))
+        # L'isthme n'a pas de mesure de reference : moyenne des deux lobes
+        rd = _face_px_per_mm(geometry, "D", pyramidal)
+        lg = _face_px_per_mm(geometry, "G", pyramidal)
+        sx, sy = (rd[0] + lg[0]) / 2, (rd[1] + lg[1]) / 2
+        return (FACE_ISTHMUS[0], FACE_ISTHMUS[1],
+                _radius(d3, sx, w_px / 2), _radius(d1, sy, h_px / 2))
 
     side = _SIDE.get(nod.side, "D")
     sign = -1 if side == "D" else 1
@@ -250,17 +387,42 @@ def face_ellipse(nod: NodulePosition) -> Tuple[float, float, float, float]:
     else:
         shift = 0.0
 
-    return (FACE_LOBE_CX[side] + shift, FACE_LEVEL_Y[_LEVEL[nod.vertical]],
-            _radius(d3), _radius(d1))
+    sx, sy = _face_px_per_mm(geometry, side, pyramidal)
+    rx = _radius(d3, sx, w_px / 2)
+    ry = _radius(d1, sy, h_px / 2)
+
+    cx = FACE_LOBE_CX[side] + shift
+    cy = _fit(FACE_LEVEL_Y[_LEVEL[nod.vertical]], ry, y_min, y_max)
+
+    # Le lobe est plus etroit aux poles qu'a sa largeur maximale : recentrer
+    # sur la place reellement disponible a ce niveau.
+    span = _face_lobe_span(cy, side, pyramidal)
+    if span:
+        cx = _fit(cx, rx, span[0], span[1])
+
+    return (cx, cy, rx, ry)
 
 
-def cut_ellipse(nod: NodulePosition) -> Tuple[float, float, float, float]:
+def cut_ellipse(nod: NodulePosition,
+                geometry: ThyroidGeometry) -> Tuple[float, float, float, float]:
+    """(cx, cy, rx, ry) d'un nodule sur une coupe longitudinale."""
     side = _SIDE.get(nod.side, "D")
     c = CUT[side]
     d1, d2, _d3 = _dims(nod)
-    return (c["cx"] + CUT_LEVEL_DX[_LEVEL[nod.vertical]],
-            c["cy"] + CUT_DEPTH_DY[_DEPTH[nod.depth]],
-            _radius(d1), _radius(d2))
+    sx, sy = _cut_px_per_mm(geometry, side)
+    rx = _radius(d1, sx, c["rx"])
+    ry = _radius(d2, sy, c["ry"])
+
+    cx = _fit(c["cx"] + CUT_LEVEL_DX[_LEVEL[nod.vertical]], rx,
+              c["cx"] - c["rx"], c["cx"] + c["rx"])
+    # Hauteur disponible a cette abscisse : la coupe est une ellipse, pas un
+    # rectangle, elle se resserre vers les poles.
+    dx = (cx - c["cx"]) / c["rx"]
+    avail = c["ry"] * math.sqrt(max(0.0, 1 - dx * dx))
+    cy = _fit(c["cy"] + CUT_DEPTH_DY[_DEPTH[nod.depth]], ry,
+              c["cy"] - avail, c["cy"] + avail)
+
+    return (cx, cy, rx, ry)
 
 
 def _ellipse_box(cx: float, cy: float, rx: float, ry: float) -> List[float]:
@@ -300,12 +462,12 @@ class ThyroidRenderer:
                output_path: str, logger=None) -> bool:
         """Rend le schema dans un PNG.
 
-        `geometry` est accepte pour la compatibilite de l'appelant mais n'est
-        pas utilise : le design est hifi, les coordonnees de l'organe sont
-        figees. Seuls les nodules sont dimensionnes a partir des mesures.
+        Les coordonnees de l'organe sont figees (design hifi). `geometry`
+        sert a dimensionner les nodules : leurs ellipses occupent la meme
+        fraction du lobe dessine que la mesure occupe du lobe reel.
         """
         try:
-            img = self.render_image(nodules)
+            img = self.render_image(nodules, geometry)
             img.save(output_path, "PNG")
             if logger:
                 logger.info(f"Thyroid schema generated: {output_path}")
@@ -315,8 +477,10 @@ class ThyroidRenderer:
                 logger.error(f"Failed to render thyroid schema: {e}", exc_info=e)
             return False
 
-    def render_image(self, nodules: Sequence[NodulePosition]) -> Image.Image:
+    def render_image(self, nodules: Sequence[NodulePosition],
+                     geometry: Optional[ThyroidGeometry] = None) -> Image.Image:
         """Rend le schema et renvoie l'image Pillow."""
+        geometry = geometry or ThyroidGeometry()
         ss = self.ss
         img = Image.new("RGB", (CANVAS_W * ss, CANVAS_H * ss), COLOR_BG)
         draw = ImageDraw.Draw(img)
@@ -352,7 +516,7 @@ class ThyroidRenderer:
             label = f"N{nod.nodule_id}"
 
             # Vue de face
-            cx, cy, rx, ry = face_ellipse(nod)
+            cx, cy, rx, ry = face_ellipse(nod, geometry, self.pyramidal_lobe)
             fx, fy = scale_about([(cx, cy)], self.face_scale, FACE_PIVOT)[0]
             draw.ellipse(
                 box(_ellipse_box(fx, fy, rx * self.face_scale, ry * self.face_scale)),
@@ -363,11 +527,21 @@ class ThyroidRenderer:
             # Coupe longitudinale (l'isthme n'appartient a aucun lobe)
             if nod.is_isthmic:
                 continue
-            cx, cy, rx, ry = cut_ellipse(nod)
+            cx, cy, rx, ry = cut_ellipse(nod, geometry)
             draw.ellipse(box(_ellipse_box(cx, cy, rx, ry)),
                          fill=fill, outline=stroke, width=nodule_w)
             _text_baseline(draw, (S(cx), S(cy + NODULE_LABEL_DY)), label,
                            f_label, "#ffffff")
+
+        # --- contours redessines --------------------------------------------
+        # Un nodule plus gros que le lobe deborde : le tracer par-dessus
+        # garde l'anatomie lisible et rend le depassement explicite.
+        draw.line(poly_ss + [poly_ss[0]], fill=ORGAN_STROKE,
+                  width=stroke_w, joint="curve")
+        for side in ("D", "G"):
+            c = CUT[side]
+            draw.ellipse(box(_ellipse_box(c["cx"], c["cy"], c["rx"], c["ry"])),
+                         outline=ORGAN_STROKE, width=stroke_w)
 
         # --- titres ---------------------------------------------------------
         f_title = _font(TITLE_SIZE * ss, bold=True)
