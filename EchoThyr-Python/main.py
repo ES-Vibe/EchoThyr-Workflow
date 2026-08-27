@@ -21,7 +21,8 @@ from src.document.pdf_exporter import PDFExporter
 from src.monitor.folder_watcher import FolderWatcher, PatientFolder
 from src.dicom.dicom_reader import DicomReader
 from src.dicom.sr_parser import SRParser
-from src.schema import PositionParser, ThyroidRenderer, ThyroidGeometry, NodulePosition
+from src.schema import (PositionParser, ThyroidRenderer, ThyroidGeometry,
+                        NodulePosition, build_table)
 
 VERSION = "2.2.0"  # Added SR support (no OCR needed)
 
@@ -254,6 +255,7 @@ class EchoThyrApp:
 
             # --- Step 5b: Generate thyroid schema ---
             schema_path = None
+            nodule_table = None
             try:
                 # Build ThyroidGeometry from SR lobe dimensions
                 geom = ThyroidGeometry()
@@ -348,12 +350,15 @@ class EchoThyrApp:
                         schema_path = str(schema_file)
                     else:
                         self.logger.warning("Schema rendering failed - continuing without schema")
+                    # Measurement table (inserted only if the template has [TABLEAU])
+                    nodule_table = build_table(nodule_positions, patient_info.exam_date)
                 else:
                     self.logger.debug("No nodule positions found - skipping schema generation")
 
             except Exception as e:
                 self.logger.warning(f"Schema generation failed (non-fatal): {e}")
                 schema_path = None
+                nodule_table = None
 
             # --- Step 6: Generate Word document ---
             success = self.word_generator.generate_report_with_text(
@@ -362,7 +367,8 @@ class EchoThyrApp:
                 jpeg_images,
                 str(word_path),
                 self.logger,
-                schema_path=schema_path
+                schema_path=schema_path,
+                nodule_table=nodule_table
             )
 
             if not success:

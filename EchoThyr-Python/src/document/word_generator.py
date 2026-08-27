@@ -187,7 +187,8 @@ class WordGenerator:
         output_path: str,
         logger=None,
         max_retries: int = 2,
-        schema_path: str = None
+        schema_path: str = None,
+        nodule_table: dict = None
     ) -> bool:
         """
         Generate medical report with pre-formatted measurement text (from SR)
@@ -200,6 +201,8 @@ class WordGenerator:
             logger: Optional logger
             max_retries: Number of retry attempts on failure
             schema_path: Optional path to thyroid schema PNG
+            nodule_table: Optional measurement table (src.schema.build_table),
+                inserted at the [TABLEAU] placeholder if the template has one
 
         Returns:
             True if successful, False otherwise
@@ -225,7 +228,8 @@ class WordGenerator:
             result = self._generate_report_internal(
                 patient_info, measurement_text, image_paths,
                 output_path, template_path, logger,
-                schema_path=schema_path
+                schema_path=schema_path,
+                nodule_table=nodule_table
             )
             if result:
                 return True
@@ -366,7 +370,8 @@ class WordGenerator:
         output_path: str,
         template_path: Path,
         logger=None,
-        schema_path: str = None
+        schema_path: str = None,
+        nodule_table: dict = None
     ) -> bool:
         """Internal method to generate the report using python-docx only (no COM)"""
         try:
@@ -427,6 +432,17 @@ class WordGenerator:
                     if logger:
                         logger.info("Schema inserted at end of document (no [SCHEMA] placeholder found)")
 
+            # Step 1c: Insert nodule measurement table at [TABLEAU] placeholder
+            if nodule_table and nodule_table.get("rows"):
+                for paragraph in doc.paragraphs:
+                    if "[TABLEAU]" in paragraph.text:
+                        for run in paragraph.runs:
+                            run.text = ""
+                        self._insert_nodule_table(doc, paragraph, nodule_table)
+                        if logger:
+                            logger.info("Nodule table inserted at [TABLEAU] placeholder")
+                        break
+
             # Step 2: Add images at the end
             if image_paths:
                 doc.add_page_break()
@@ -454,6 +470,89 @@ class WordGenerator:
             if logger:
                 logger.error(f"Failed to generate Word document: {e}", exc_info=e)
             return False
+
+    # ------------------------------------------------------------------
+    # Tableau de mesures des nodules (design handoff schema_thyroidien)
+    # ------------------------------------------------------------------
+
+    # Colonnes du design : les trois dimensions et le volume sont alignes a droite
+    _TABLE_KEYS = ["nodule", "cote", "siege", "long_mm", "larg_mm",
+                   "epais_mm", "volume_ml", "examen"]
+    _TABLE_NUMERIC = {"long_mm", "larg_mm", "epais_mm", "volume_ml"}
+
+    def _insert_nodule_table(self, doc, anchor_paragraph, table_data: dict):
+        """Insert the nodule measurement table right after `anchor_paragraph`."""
+        from docx.shared import Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        headers = table_data["headers"]
+        rows = table_data["rows"]
+
+        # 1 en-tete + n nodules + 1 ligne de total
+        table = doc.add_table(rows=len(rows) + 2, cols=len(headers))
+        table.autofit = True
+
+        header_color = RGBColor(0x6B, 0x68, 0x64)
+        body_color = RGBColor(0x23, 0x23, 0x23)
+
+        def write(cell, text, *, size, color, bold=False, right=False):
+            cell.text = ""
+            para = cell.paragraphs[0]
+            if right:
+                para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            run = para.add_run(text)
+            run.font.size = Pt(size)
+            run.font.color.rgb = color
+            run.bold = bold
+
+        # En-tete : 11 px capitales, filet fonce dessous
+        for col, label in enumerate(headers):
+            write(table.cell(0, col), label.upper(), size=8.5,
+                  color=header_color, bold=True,
+                  right=self._TABLE_KEYS[col] in self._TABLE_NUMERIC)
+        self._set_row_bottom_border(table.rows[0], "232323", 12)
+
+        # Corps : 12 px, filet clair sous chaque ligne
+        for i, row_data in enumerate(rows, start=1):
+            for col, key in enumerate(self._TABLE_KEYS):
+                write(table.cell(i, col), str(row_data.get(key, "")), size=9,
+                      color=body_color, right=key in self._TABLE_NUMERIC)
+            border = "232323" if i == len(rows) else "ECE9E4"
+            self._set_row_bottom_border(table.rows[i], border,
+                                        12 if i == len(rows) else 4)
+
+        # Ligne de total : libelle sur les colonnes de gauche, volume aligne
+        total_row = table.rows[-1]
+        write(total_row.cells[0], table_data["total_label"], size=9,
+              color=body_color, bold=True)
+        for col in range(1, len(headers)):
+            key = self._TABLE_KEYS[col]
+            text = table_data["total_volume_ml"] if key == "volume_ml" else ""
+            write(total_row.cells[col], text, size=9, color=body_color,
+                  bold=(key == "volume_ml"), right=key in self._TABLE_NUMERIC)
+
+        # python-docx ajoute la table en fin de document : la remonter au placeholder
+        anchor_paragraph._p.addnext(table._tbl)
+
+    @staticmethod
+    def _set_row_bottom_border(row, hex_color: str, size: int):
+        """Set a bottom border on every cell of `row` (size in eighths of a point)."""
+        from docx.oxml.ns import qn
+
+        for cell in row.cells:
+            tc_pr = cell._tc.get_or_add_tcPr()
+            borders = tc_pr.find(qn('w:tcBorders'))
+            if borders is None:
+                borders = tc_pr.makeelement(qn('w:tcBorders'), {})
+                tc_pr.append(borders)
+            bottom = borders.find(qn('w:bottom'))
+            if bottom is None:
+                bottom = borders.makeelement(qn('w:bottom'), {})
+                borders.append(bottom)
+            bottom.set(qn('w:val'), 'single')
+            bottom.set(qn('w:sz'), str(size))
+            bottom.set(qn('w:space'), '0')
+            bottom.set(qn('w:color'), hex_color)
 
     def _format_measurements(self, measurements: List) -> str:
         """Format measurements into medical report text"""

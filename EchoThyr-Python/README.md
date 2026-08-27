@@ -1,4 +1,4 @@
-# 🐍 EchoThyr Automation - Version Python 2.3.0
+# 🐍 EchoThyr Automation - Version Python 2.4.0
 
 Version Python moderne du système d'automatisation de comptes rendus d'échographie thyroïdienne.
 
@@ -6,7 +6,8 @@ Version Python moderne du système d'automatisation de comptes rendus d'échogra
 
 - ✅ **3 modes de détection** : SR pur, hybride SR+OCR, OCR seul
 - ✅ **Structured Reports GE** : Parsing du XML propriétaire GE (tag 6005,1010)
-- ✅ **Schéma thyroïdien automatique** : Vue frontale + coupe transversale avec nodules positionnés
+- ✅ **Schéma thyroïdien automatique** : Vue de face + 2 coupes longitudinales avec nodules positionnés
+- ✅ **Tableau de mesures** : Siège, dimensions et volume ellipsoïde par nodule
 - ✅ **Architecture modulaire** : Code organisé en modules (OCR, DICOM, document, schéma)
 - ✅ **Configuration YAML** : Paramétrage facile
 - ✅ **Prêt pour IA/ML** : Compatible TensorFlow, scikit-learn, OpenCV
@@ -31,7 +32,8 @@ EchoThyr-Python/
 │   ├── schema/                # Génération schéma thyroïdien
 │   │   ├── models.py         # NodulePosition, ThyroidGeometry, enums
 │   │   ├── position_parser.py # Extraction position depuis légendes OCR
-│   │   └── thyroid_renderer.py # Rendu Pillow (vue frontale + transversale)
+│   │   ├── thyroid_renderer.py # Rendu Pillow (vue de face + coupes)
+│   │   └── measurement_table.py # Tableau de mesures (siège, volume)
 │   ├── document/              # Génération documents
 │   │   ├── word_generator.py # Génération Word avec schéma intégré
 │   │   └── pdf_exporter.py
@@ -137,16 +139,24 @@ Le pipeline détecte automatiquement le mode optimal selon les données disponib
 3. **Conversion JPEG** : DICOM → JPEG pour le document Word
 4. **Mesures** : Extraction selon le mode détecté (SR/hybride/OCR)
 5. **Schéma thyroïdien** : Génération automatique du schéma anatomique
-6. **Document Word** : Génération du compte-rendu avec schéma intégré
+6. **Document Word** : Génération du compte-rendu avec schéma et tableau intégrés
 7. **Export PDF** : Conversion Word → PDF (optionnel)
 
 ## 🖼️ Schéma thyroïdien automatique
 
-Le module `src/schema/` génère un schéma anatomique montrant la position et la taille proportionnelle des nodules :
+Le module `src/schema/` génère un schéma anatomique montrant la position et la taille
+proportionnelle des nodules. La géométrie est issue du design
+`design_handoff_schema_thyroidien` (canvas 1000 × 620, haute fidélité) :
 
-- **Vue frontale (coronale)** : Trachée, lobes proportionnels aux mesures, isthme, nodules positionnés (S/M/I, lat/méd)
-- **Coupe transversale (axiale)** : Profondeur antérieur/postérieur des nodules
-- **Légende** : Couleurs distinctes par nodule avec dimensions
+- **Vue de face (centre)** : contour papillon avec lobe pyramidal, tracé à partir
+  d'un path SVG aplati en polygone (Pillow ne connaît pas les Bézier)
+- **Coupes longitudinales (gauche et droite)** : section sagittale de chaque lobe.
+  Axe horizontal = craniocaudal (HT/BS), axe vertical = antéro-postérieur (AV/AR)
+- **Croix d'orientation** : une sous chaque vue
+
+Les coordonnées, couleurs et tailles de police sont figées par le design et ne
+doivent pas être retouchées sans reprendre celui-ci. Seuls les nodules sont
+dimensionnés à partir des mesures (`PX_PER_MM = 3`).
 
 ### Positionnement des nodules
 
@@ -164,8 +174,27 @@ Le parser tolère les erreurs OCR courantes (`OOST` → POST, `P0ST` → POST).
 ### Rendu
 
 - Technique de supersampling 3x + LANCZOS pour un rendu anti-aliasé de qualité
+  (Pillow n'anticrénèle pas les primitives)
 - Convention anatomique : lobe droit affiché à gauche (vue de face du patient)
 - Le schéma est inséré au placeholder `[SCHEMA]` dans le template Word, ou en fin de document
+
+### Tableau de mesures
+
+Le design remplace la légende de couleurs par un tableau, généré par
+`src/schema/measurement_table.py` :
+
+| Colonne | Contenu |
+|---|---|
+| Nodule · Côté · Siège | dérivés des descripteurs de position, jamais saisis deux fois |
+| Long. · Larg. · Épais. | dimensions en mm (1 décimale) |
+| Volume | ellipsoïde `V = π/6 × L × l × É`, en mL |
+| Examen | date de l'examen |
+
+Une ligne **Volume nodulaire total** clôt le tableau.
+
+Il est inséré au placeholder `[TABLEAU]` du template Word. Si le template n'en
+contient pas, le tableau est simplement omis — les templates existants restent
+compatibles sans modification.
 
 ## 🐛 Dépannage
 
@@ -205,5 +234,5 @@ Format :
 
 ---
 
-**Version** : 2.3.0
+**Version** : 2.4.0
 **Licence** : MIT
