@@ -41,7 +41,9 @@ class HybridMatcher:
         # Separate OCR contexts by type
         matchable_by_volume = [c for c in ocr_contexts if c.has_measurements and c.volume_ml > 0]
         matchable_by_dims = [c for c in ocr_contexts if c.has_measurements and c.volume_ml == 0 and c.dimensions_cm]
-        isthmus_contexts = [c for c in ocr_contexts if c.is_isthmus]
+        # Seul « ISTHME » sans numero mesure la glande. « ISTHME N4 » est un
+        # nodule situe dans l'isthme et suit le chemin des nodules.
+        isthmus_contexts = [c for c in ocr_contexts if c.is_isthmus_gland]
 
         unmatched_sr = list(raw_sets)
         matched_pairs = []  # List of (RawMeasurementSet, OCRContext)
@@ -96,10 +98,11 @@ class HybridMatcher:
             best_count = 0
 
             for ocr in all_remaining:
-                if ocr.is_isthmus:
+                if ocr.is_isthmus_gland:
                     continue
-                # Require side to match
-                if not ocr.side:
+                # Require side to match — sauf pour un nodule isthmique,
+                # qui n'appartient a aucun lobe et n'a donc pas de cote.
+                if not ocr.side and not ocr.is_isthmic_nodule:
                     continue
 
                 # Count how many OCR dimensions match any SR dimension
@@ -137,7 +140,7 @@ class HybridMatcher:
         for sr_set, ocr in matched_pairs:
             side = "Rt" if ocr.side == "RT" else ("Lt" if ocr.side == "LT" else "")
 
-            if ocr.is_isthmus:
+            if ocr.is_isthmus_gland:
                 # Isthmus matched to SR (rare: measured with volume tool)
                 if sr_set.height_cm > 0:
                     sr_report.isthmus_mm = max(sr_set.height_cm, sr_set.width_cm, sr_set.length_cm) * 10
@@ -156,11 +159,13 @@ class HybridMatcher:
                     height=sr_set.height_cm * 10,   # cm to mm
                     width=sr_set.width_cm * 10,
                     length=sr_set.length_cm * 10,
-                    volume=sr_set.volume_ml
+                    volume=sr_set.volume_ml,
+                    is_isthmic=ocr.is_isthmic_nodule
                 )
                 sr_report.nodules.append(nodule)
                 if logger:
-                    logger.info(f"Nodule N{nodule_id} ({side}): "
+                    where = "isthme" if nodule.is_isthmic else (side or "cote inconnu")
+                    logger.info(f"Nodule N{nodule_id} ({where}): "
                                f"{nodule.height:.1f}x{nodule.width:.1f}x{nodule.length:.1f}mm "
                                f"vol={nodule.volume:.2f}ml")
             else:
@@ -202,7 +207,7 @@ class HybridMatcher:
         for ocr in all_remaining_ocr:
             if id(ocr) in all_matched_ocr:
                 continue
-            if not ocr.nodule or ocr.is_isthmus:
+            if not ocr.nodule or ocr.is_isthmus_gland:
                 continue
             if len(ocr.dimensions_cm) < 3:
                 continue
@@ -226,11 +231,13 @@ class HybridMatcher:
                 height=h_mm,
                 width=w_mm,
                 length=l_mm,
-                volume=vol_ml
+                volume=vol_ml,
+                is_isthmic=ocr.is_isthmic_nodule
             )
             sr_report.nodules.append(nodule)
             if logger:
-                logger.info(f"Nodule N{nodule_id} ({side}) from OCR only: "
+                where = "isthme" if nodule.is_isthmic else (side or "cote inconnu")
+                logger.info(f"Nodule N{nodule_id} ({where}) from OCR only: "
                            f"{h_mm:.1f}x{w_mm:.1f}x{l_mm:.1f}mm "
                            f"vol={vol_ml:.2f}ml (calculated)")
 

@@ -61,9 +61,13 @@ def _fmt(value: float) -> str:
 
 def build_rows(nodules: Sequence[NodulePosition],
                exam_date: str = "") -> List[dict]:
-    """Lignes du tableau, une par nodule."""
+    """Lignes du tableau, une par nodule, dans l'ordre des numeros.
+
+    L'appariement hybride les produit dans l'ordre ou il les resout, pas dans
+    celui de leurs numeros.
+    """
     rows = []
-    for nod in nodules:
+    for nod in sorted(nodules, key=lambda n: n.nodule_id):
         if nod.is_isthmic:
             side = "Isthme"
         else:

@@ -24,11 +24,12 @@ class ThyroidMeasurement:
 class NoduleMeasurement:
     """Nodule measurement with dimensions"""
     nodule_id: int      # 1, 2, 3, etc.
-    side: str           # "Rt" or "Lt"
+    side: str           # "Rt", "Lt", or "" (isthmic nodule: no side)
     height: float = 0.0  # in mm
     width: float = 0.0   # in mm
     length: float = 0.0  # in mm
     volume: float = 0.0  # in ml (from SR or calculated)
+    is_isthmic: bool = False  # True if located in the isthmus rather than a lobe
 
     def calculate_volume(self) -> float:
         """Calculate volume using ellipsoid formula: V = π/6 × H × W × L (in ml)"""

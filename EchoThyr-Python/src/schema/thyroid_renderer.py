@@ -101,12 +101,19 @@ FALLBACK_LOBE_H = 45.0       # craniocaudal
 FALLBACK_LOBE_W = 15.0       # transverse
 FALLBACK_LOBE_AP = 15.0      # antero-posterieur
 
+# Les cinq premieres teintes sont celles du design. Les suivantes le
+# prolongent : la numerotation reelle depasse 5, et une palette de 5 faisait
+# porter la meme couleur a N1 et N6 sur un meme schema.
 PALETTE = [
     ("#D74646", "#A51E1E"),   # N1 rouge
     ("#377DD7", "#194BA5"),   # N2 bleu
     ("#41A541", "#197319"),   # N3 vert
     ("#D79119", "#A56905"),   # N4 orange
     ("#A541D7", "#7D19A5"),   # N5 violet
+    ("#1F9E9E", "#0E6E6E"),   # N6 turquoise
+    ("#C7417B", "#951953"),   # N7 rose
+    ("#6B7B2A", "#485416"),   # N8 olive
+    ("#5A5AC7", "#343495"),   # N9 indigo
 ]
 
 TITLES = [("Lobe droit", 170), ("Vue de face", 500), ("Lobe gauche", 830)]

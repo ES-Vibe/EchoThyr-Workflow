@@ -320,15 +320,17 @@ class EchoThyrApp:
                             # se rabattre sur le seul numero de nodule.
                             match = next(
                                 (c for c in nodule_ocr_contexts
-                                 if c.nodule == nod_num and c.is_isthmus), None)
+                                 if c.nodule == nod_num and c.is_isthmic_nodule), None)
                         position_text = match.position_text if match else ""
 
                         nod_pos = position_parser.parse_position_text(
                             position_text, nod_meas.nodule_id, side_rt_lt
                         )
-                        # Le SR ne connait pas l'isthme, l'info vient de l'OCR
-                        if match and match.is_isthmus:
-                            nod_pos.is_isthmic = True
+                        # Le SR ignore l'isthme : l'info vient du matcher
+                        # hybride, ou a defaut du contexte OCR apparie.
+                        nod_pos.is_isthmic = bool(
+                            nod_meas.is_isthmic
+                            or (match and match.is_isthmic_nodule))
                         # Enrich with SR dimensions
                         nod_pos.height_mm = nod_meas.height
                         nod_pos.width_mm = nod_meas.width

@@ -589,7 +589,11 @@ class WordGenerator:
         # dans l'isthme, qui ne doit pas etre pris pour la mesure de glande.
         isthmus = next((m for m in measurements
                         if m.is_isthmus and not m.nodule), None)
-        nodules = [m for m in measurements if m.nodule]
+        # Tries par numero : l'ordre d'extraction n'est pas celui des numeros
+        nodules = sorted(
+            (m for m in measurements if m.nodule),
+            key=lambda m: int(m.nodule) if m.nodule.isdigit() else 999
+        )
 
         # Build report text (using \r\n for Word compatibility)
         text = "• Volume thyroïdien\r\n"

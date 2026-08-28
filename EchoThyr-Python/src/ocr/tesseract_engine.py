@@ -32,6 +32,20 @@ class OCRContext:
     has_measurements: bool = True  # False for images without measurement overlay
     position_text: str = ""    # Position tokens from legend (e.g., "SUP EXT POST")
 
+    # L'isthme est a la fois une mesure de glande et une region pouvant
+    # porter des nodules. C'est la presence d'un numero de nodule qui
+    # separe les deux : "ISTHMUS AO%" mesure la glande, "ISTHMUS N4 AO%"
+    # designe le nodule 4 situe dans l'isthme.
+    @property
+    def is_isthmus_gland(self) -> bool:
+        """Mesure d'epaisseur de l'isthme lui-meme."""
+        return self.is_isthmus and not self.nodule
+
+    @property
+    def is_isthmic_nodule(self) -> bool:
+        """Nodule situe dans l'isthme."""
+        return self.is_isthmus and bool(self.nodule)
+
 
 class TesseractEngine:
     """OCR engine using Tesseract"""
