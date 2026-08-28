@@ -113,8 +113,15 @@ class ThyroidReport:
         # Nodules
         if self.nodules:
             lines.append("• Nodules :")
-            for nodule in self.nodules:
-                side_text = "lobe droit" if nodule.side == "Rt" else "lobe gauche"
+            # Tries par numero : l'appariement hybride les resout dans un
+            # ordre qui n'est pas celui de leurs numeros.
+            for nodule in sorted(self.nodules, key=lambda n: n.nodule_id):
+                if nodule.is_isthmic:
+                    side_text = "isthme"
+                elif nodule.side == "Rt":
+                    side_text = "lobe droit"
+                else:
+                    side_text = "lobe gauche"
                 dims = f"{nodule.height:.1f} x {nodule.width:.1f} x {nodule.length:.1f} mm"
                 vol = nodule.get_volume()
                 if vol > 0:

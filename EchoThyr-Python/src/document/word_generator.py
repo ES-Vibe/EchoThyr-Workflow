@@ -604,14 +604,16 @@ class WordGenerator:
         text += "• Pas d'anomalie de la vascularisation\r\n"
         text += "• Nodules :\r\n"
 
+        # Meme forme que ThyroidReport.get_formatted_text (mode SR/hybride),
+        # pour que le compte rendu soit identique quel que soit le mode.
         for nodule in nodules:
             if nodule.is_isthmus:
-                location = "Isthme"
+                location = "isthme"
             elif nodule.side == "RT":
-                location = "Lobe droit"
+                location = "lobe droit"
             else:
-                location = "Lobe gauche"
-            text += f"  - Nodule N{nodule.nodule} {location} : {nodule.text}\r\n"
+                location = "lobe gauche"
+            text += f"  - Nodule {nodule.nodule} ({location}) : {nodule.text}\r\n"
 
         text += "• Etude des ganglions (secteurs II, III, IV, VI) et du tractus thyréoglosse : 0"
 
