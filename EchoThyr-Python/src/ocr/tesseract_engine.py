@@ -19,6 +19,15 @@ class Measurement:
     text: str  # Formatted measurement text (e.g., "45.2 x 23.1 x 18.5 mm")
 
 
+# Tesseract confond chiffres et lettres dans le numero de nodule.
+# D et G sont volontairement absents : ce sont les suffixes de cote
+# (N1D = nodule 1 droit, N1G = nodule 1 gauche), pas des chiffres.
+NODULE_DIGIT_LOOKALIKES = {
+    'I': '1', 'L': '1', '|': '1',
+    'Z': '2', 'A': '4', 'S': '5', 'T': '7', 'B': '8',
+}
+
+
 @dataclass
 class OCRContext:
     """Context extracted from image legend + measurement values for hybrid matching"""
@@ -31,6 +40,7 @@ class OCRContext:
     volume_ml: float = 0.0     # Volume in ml if shown on image
     has_measurements: bool = True  # False for images without measurement overlay
     position_text: str = ""    # Position tokens from legend (e.g., "SUP EXT POST")
+    nodule_unreadable: bool = False  # "N?" present but the number is undecipherable
 
     # L'isthme est a la fois une mesure de glande et une region pouvant
     # porter des nodules. C'est la presence d'un numero de nodule qui
@@ -216,21 +226,36 @@ class TesseractEngine:
 
             # Extract legend: nodule number (N1, N2...)
             # Use single digit first to avoid OCR noise (e.g., "N14" from "N1" + stray "4")
-            # Also handle OCR misreads: "Ni" or "Nl" instead of "N1"
             # GE format: N1D (nodule 1 droit), N1G (nodule 1 gauche)
             nodule = ""
+            nodule_unreadable = False
             nodule_match = re.search(r"\bN(\d)[DG]?\b", legend_text, re.IGNORECASE)
             if not nodule_match:
-                # Fallback: OCR often reads "1" as "i" or "l"
-                nodule_match = re.search(r"\bN([il])[DG]?\b", legend_text)
-                if nodule_match:
-                    nodule_match = None  # reset to use manual assignment
-                    nodule = "1"
-            if not nodule_match and not nodule:
                 # Fallback for N10-N20 (rare, double digit)
                 nodule_match = re.search(r"\bN(1\d|20)[DG]?\b", legend_text, re.IGNORECASE)
             if nodule_match:
                 nodule = nodule_match.group(1)
+            else:
+                # Chiffre lu comme une lettre (« NS » pour « N5 »). Sans ce
+                # rattrapage le nodule est perdu, et l'image part dans les
+                # mesures de lobe ou elle ecrase le lobe du meme cote.
+                letter_match = re.search(r"\b[Nn]([A-Za-z|])[DG]?\b", legend_text)
+                if letter_match:
+                    letter = letter_match.group(1).upper()
+                    if letter in NODULE_DIGIT_LOOKALIKES:
+                        nodule = NODULE_DIGIT_LOOKALIKES[letter]
+                        if logger:
+                            logger.warning(
+                                f"Numero de nodule illisible 'N{letter_match.group(1)}' "
+                                f"interprete comme N{nodule}")
+                    else:
+                        # Numero present mais indechiffrable : le signaler
+                        # plutot que de laisser passer pour un lobe.
+                        nodule_unreadable = True
+                        if logger:
+                            logger.warning(
+                                f"Numero de nodule indechiffrable "
+                                f"'N{letter_match.group(1)}' dans : {legend_text[:70]}")
 
             # Extract legend: isthmus
             is_isthmus = bool(re.search(r"Isthme|Isthmus", legend_text, re.IGNORECASE))
@@ -279,7 +304,8 @@ class TesseractEngine:
                 dimensions_cm=dimensions_cm,
                 volume_ml=volume_ml,
                 has_measurements=has_measurements,
-                position_text=position_text
+                position_text=position_text,
+                nodule_unreadable=nodule_unreadable
             )
 
         except Exception as e:

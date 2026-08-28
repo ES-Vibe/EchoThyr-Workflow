@@ -484,28 +484,47 @@ class ThyroidRenderer:
                 logger.error(f"Failed to render thyroid schema: {e}", exc_info=e)
             return False
 
-    def _isthmus_offsets(self, nodules: Sequence[NodulePosition],
-                         geometry: ThyroidGeometry) -> dict:
-        """Decalages horizontaux des nodules isthmiques.
+    def _collision_offsets(self, nodules: Sequence[NodulePosition],
+                           geometry: ThyroidGeometry, view: str) -> dict:
+        """Decalages evitant que des nodules se superposent.
 
-        L'isthme est une region d'implantation : elle peut porter plusieurs
-        nodules, qui se superposeraient tous au centre de la vue de face. Ils
-        sont donc ranges cote a cote, le groupe restant centre sur la mediane.
+        Deux nodules d'une meme region dont la legende ne porte aucun
+        descripteur de position tombent exactement au meme point : le second
+        masque le premier et son etiquette. Ceux qui partagent un emplacement
+        sont donc ranges en file, le groupe restant centre dessus.
+
+        L'empilement suit l'axe le plus spacieux de la vue : vertical en vue
+        de face, ou le lobe est haut et etroit ; horizontal sur les coupes,
+        qui sont larges et basses.
         """
-        idx = [i for i, n in enumerate(nodules) if n.is_isthmic]
-        if len(idx) < 2:
-            return {}
+        groups = {}
+        for i, nod in enumerate(nodules):
+            if view == "face":
+                key = ("isthme",) if nod.is_isthmic else (
+                    _SIDE.get(nod.side, "D"), _LEVEL[nod.vertical],
+                    _LAT[nod.lateral])
+            else:
+                if nod.is_isthmic:      # absent des coupes
+                    continue
+                key = (_SIDE.get(nod.side, "D"), _LEVEL[nod.vertical],
+                       _DEPTH[nod.depth])
+            groups.setdefault(key, []).append(i)
 
-        radii = [face_ellipse(nodules[i], geometry, self.pyramidal_lobe)[2]
-                 for i in idx]
         gap = 6.0
-        span = sum(2 * r for r in radii) + gap * (len(radii) - 1)
-
         offsets = {}
-        x = -span / 2
-        for i, r in zip(idx, radii):
-            offsets[i] = x + r
-            x += 2 * r + gap
+        for idx in groups.values():
+            if len(idx) < 2:
+                continue
+            if view == "face":      # empilement vertical -> demi-hauteur
+                radii = [face_ellipse(nodules[i], geometry,
+                                      self.pyramidal_lobe)[3] for i in idx]
+            else:                   # rangement horizontal -> demi-largeur
+                radii = [cut_ellipse(nodules[i], geometry)[2] for i in idx]
+
+            x = -(sum(2 * r for r in radii) + gap * (len(radii) - 1)) / 2
+            for i, r in zip(idx, radii):
+                offsets[i] = x + r
+                x += 2 * r + gap
         return offsets
 
     def render_image(self, nodules: Sequence[NodulePosition],
@@ -542,14 +561,24 @@ class ThyroidRenderer:
         # --- nodules --------------------------------------------------------
         # L'etiquette reste a 10 px effectifs malgre le x1.22 de la vue de face
         f_label = _font(NODULE_LABEL_SIZE * ss, bold=True)
-        isthmus_dx = self._isthmus_offsets(nodules, geometry)
+        face_dy = self._collision_offsets(nodules, geometry, "face")
+        cut_dx = self._collision_offsets(nodules, geometry, "cut")
+        _, lobe_y_min, lobe_y_max, _, _ = _face_lobe_profile(self.pyramidal_lobe)
         for i, nod in enumerate(nodules):
             fill, stroke = _colors(nod.nodule_id)
             label = f"N{nod.nodule_id}"
 
             # Vue de face
             cx, cy, rx, ry = face_ellipse(nod, geometry, self.pyramidal_lobe)
-            cx += isthmus_dx.get(i, 0.0)
+            if i in face_dy:
+                # Empiles verticalement : rester dans la hauteur du lobe
+                cy = _fit(cy + face_dy[i], ry, lobe_y_min, lobe_y_max)
+            if not nod.is_isthmic:
+                # La largeur disponible change avec la hauteur : recadrer
+                span = _face_lobe_span(cy, _SIDE.get(nod.side, "D"),
+                                       self.pyramidal_lobe)
+                if span:
+                    cx = _fit(cx, rx, span[0], span[1])
             fx, fy = scale_about([(cx, cy)], self.face_scale, FACE_PIVOT)[0]
             draw.ellipse(
                 box(_ellipse_box(fx, fy, rx * self.face_scale, ry * self.face_scale)),
@@ -561,6 +590,10 @@ class ThyroidRenderer:
             if nod.is_isthmic:
                 continue
             cx, cy, rx, ry = cut_ellipse(nod, geometry)
+            if i in cut_dx:
+                c = CUT[_SIDE.get(nod.side, "D")]
+                cx = _fit(cx + cut_dx[i], rx,
+                          c["cx"] - c["rx"], c["cx"] + c["rx"])
             draw.ellipse(box(_ellipse_box(cx, cy, rx, ry)),
                          fill=fill, outline=stroke, width=nodule_w)
             _text_baseline(draw, (S(cx), S(cy + NODULE_LABEL_DY)), label,

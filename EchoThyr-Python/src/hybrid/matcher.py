@@ -175,7 +175,26 @@ class HybridMatcher:
                         logger.warning(f"No side detected for lobe measurement (resultNo={sr_set.result_no})")
                     continue
 
+                if ocr.nodule_unreadable:
+                    # La legende porte un numero de nodule illisible : c'est
+                    # un nodule, pas un lobe. Le prendre pour un lobe
+                    # ecraserait la mesure du lobe de ce cote.
+                    if logger:
+                        logger.warning(
+                            f"Mesure ignoree (numero de nodule illisible, "
+                            f"resultNo={sr_set.result_no}) : {ocr.legend_text[:70]}")
+                    continue
+
                 lobe = sr_report.right_lobe if side == "Rt" else sr_report.left_lobe
+                if lobe:
+                    # Un lobe ne se mesure qu'une fois. Un second candidat du
+                    # meme cote est un nodule dont le numero s'est perdu.
+                    if logger:
+                        side_text = "droit" if side == "Rt" else "gauche"
+                        logger.warning(
+                            f"Lobe {side_text} deja mesure : seconde mesure ignoree "
+                            f"(Vol={sr_set.volume_ml:.2f}ml) — {ocr.legend_text[:70]}")
+                    continue
 
                 for label, val in [("H", sr_set.height_cm), ("W", sr_set.width_cm), ("L", sr_set.length_cm)]:
                     if val > 0:
