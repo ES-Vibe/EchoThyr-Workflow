@@ -406,8 +406,8 @@ class WordGenerator:
                                     self._replace_in_paragraph(paragraph, placeholder, value)
 
             # Step 1b: Insert thyroid schema if available
+            schema_paragraph = None
             if schema_path and Path(schema_path).exists():
-                schema_inserted = False
                 # Try to find and replace [SCHEMA] placeholder
                 for paragraph in doc.paragraphs:
                     if "[SCHEMA]" in paragraph.text:
@@ -417,31 +417,41 @@ class WordGenerator:
                         # Insert schema image in this paragraph
                         run = paragraph.add_run()
                         run.add_picture(schema_path, width=Inches(5.0))
-                        schema_inserted = True
+                        schema_paragraph = paragraph
                         if logger:
                             logger.info("Schema inserted at [SCHEMA] placeholder")
                         break
 
-                if not schema_inserted:
+                if schema_paragraph is None:
                     # No placeholder found: insert schema after the last paragraph
                     # (before the image page break)
                     doc.add_paragraph("")  # Spacing
-                    p = doc.add_paragraph()
-                    run = p.add_run()
+                    schema_paragraph = doc.add_paragraph()
+                    run = schema_paragraph.add_run()
                     run.add_picture(schema_path, width=Inches(5.0))
                     if logger:
                         logger.info("Schema inserted at end of document (no [SCHEMA] placeholder found)")
 
-            # Step 1c: Insert nodule measurement table at [TABLEAU] placeholder
+            # Step 1c: Insert nodule measurement table.
+            # The design places it directly under the schema, so that is the
+            # default position; a [TABLEAU] placeholder overrides it.
             if nodule_table and nodule_table.get("rows"):
+                anchor, where = None, ""
                 for paragraph in doc.paragraphs:
                     if "[TABLEAU]" in paragraph.text:
                         for run in paragraph.runs:
                             run.text = ""
-                        self._insert_nodule_table(doc, paragraph, nodule_table)
-                        if logger:
-                            logger.info("Nodule table inserted at [TABLEAU] placeholder")
+                        anchor, where = paragraph, "[TABLEAU] placeholder"
                         break
+
+                if anchor is None and schema_paragraph is not None:
+                    anchor, where = schema_paragraph, "under the schema"
+                if anchor is None:
+                    anchor, where = doc.add_paragraph(), "end of document"
+
+                self._insert_nodule_table(doc, anchor, nodule_table)
+                if logger:
+                    logger.info(f"Nodule table inserted ({where})")
 
             # Step 2: Add images at the end
             if image_paths:
@@ -479,10 +489,14 @@ class WordGenerator:
     _TABLE_KEYS = ["nodule", "cote", "siege", "long_mm", "larg_mm",
                    "epais_mm", "volume_ml", "examen"]
     _TABLE_NUMERIC = {"long_mm", "larg_mm", "epais_mm", "volume_ml"}
+    # Largeurs en cm, total 16 cm = largeur utile d'une page A4. « Siège » est
+    # la seule colonne a texte libre, elle prend la place que les autres
+    # n'utilisent pas.
+    _TABLE_WIDTHS_CM = [1.4, 1.5, 4.0, 1.75, 1.75, 1.8, 1.9, 1.9]
 
     def _insert_nodule_table(self, doc, anchor_paragraph, table_data: dict):
         """Insert the nodule measurement table right after `anchor_paragraph`."""
-        from docx.shared import Pt, RGBColor
+        from docx.shared import Cm, Pt, RGBColor
         from docx.enum.text import WD_ALIGN_PARAGRAPH
 
         headers = table_data["headers"]
@@ -490,14 +504,24 @@ class WordGenerator:
 
         # 1 en-tete + n nodules + 1 ligne de total
         table = doc.add_table(rows=len(rows) + 2, cols=len(headers))
-        table.autofit = True
+
+        # Word ignore la largeur d'une colonne si elle n'est pas repetee sur
+        # chaque cellule (tcW) ; la grille (gridCol) seule ne suffit pas, et
+        # l'autofit recalculerait tout de toute facon.
+        table.autofit = False
+        for col, width_cm in zip(table.columns, self._TABLE_WIDTHS_CM):
+            col.width = Cm(width_cm)
+            for cell in col.cells:
+                cell.width = Cm(width_cm)
 
         header_color = RGBColor(0x6B, 0x68, 0x64)
         body_color = RGBColor(0x23, 0x23, 0x23)
 
         def write(cell, text, *, size, color, bold=False, right=False):
-            cell.text = ""
             para = cell.paragraphs[0]
+            # Vider la cellule sans laisser de run vide non formate
+            for existing in list(para.runs):
+                existing._element.getparent().remove(existing._element)
             if right:
                 para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
             run = para.add_run(text)

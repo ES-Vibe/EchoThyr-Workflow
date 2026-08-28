@@ -210,9 +210,13 @@ Le design remplace la légende de couleurs par un tableau, généré par
 
 Une ligne **Volume nodulaire total** clôt le tableau.
 
-Il est inséré au placeholder `[TABLEAU]` du template Word. Si le template n'en
-contient pas, le tableau est simplement omis — les templates existants restent
-compatibles sans modification.
+Comme dans le design, il est inséré **directement sous le schéma**. Un
+placeholder `[TABLEAU]` dans le template permet de le placer ailleurs. Aucune
+modification du template n'est nécessaire.
+
+Largeurs de colonnes fixées à 16 cm au total (largeur utile d'une page A4), la
+colonne « Siège » prenant la place que les autres n'utilisent pas. Le tableau
+n'apparaît que s'il y a au moins un nodule.
 
 ## 🐛 Dépannage
 
