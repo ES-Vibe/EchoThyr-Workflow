@@ -82,9 +82,31 @@ distincte.
 
 ### 3.4 Isthme
 
+L'isthme est une **région d'implantation à part entière**, au même titre qu'un
+lobe : il peut porter un ou plusieurs nodules.
+
 Un nodule isthmique n'appartient à aucun lobe. Il porte le libellé « isthme »
 seul, sans étage ni profondeur ni latéralité, apparaît au centre de la vue de
-face et **n'est représenté sur aucune coupe longitudinale**.
+face et **n'est représenté sur aucune coupe longitudinale** — une coupe
+longitudinale est celle d'un lobe.
+
+Plusieurs nodules isthmiques sont rangés côte à côte dans la bande isthmique,
+le groupe restant centré sur la ligne médiane.
+
+Le mot peut être écrit **n'importe où** dans la légende, y compris avant le
+numéro de nodule :
+
+| Légende | Interprétation |
+|---|---|
+| `ISTHME N2` | nodule N2 dans l'isthme |
+| `ISTHME N2 A0%` | nodule N2 dans l'isthme |
+| `N2 ISTHME A0%` | nodule N2 dans l'isthme |
+| `THYROID ISTHMUS N3 ANT A0%` | nodule N3 dans l'isthme, antérieur |
+| `ISTHME` *(sans numéro)* | mesure d'épaisseur de la glande, **pas un nodule** |
+
+C'est la présence d'un numéro de nodule qui distingue les deux derniers cas :
+sans numéro, la ligne mesure l'isthme lui-même et alimente « isthme : … mm »
+du compte rendu.
 
 ---
 
@@ -99,7 +121,7 @@ vue n'y est simplement pas représenté — ce n'est pas une omission.
 | Étage (SUP / MOY / INF) | ✅ hauteur | ✅ position horizontale | ✅ colonne « Siège » |
 | Profondeur (ANT / POST) | ❌ | ✅ position verticale | ✅ colonne « Siège » |
 | Latéralité (LAT / MED) | ✅ décalage horizontal | ❌ | ✅ colonne « Siège » |
-| Isthme | ✅ centre | ❌ | ✅ « Isthme » |
+| Isthme | ✅ centre, côte à côte si plusieurs | ❌ | ✅ « Isthme » |
 
 La profondeur ne se lit donc **que** sur les coupes longitudinales, et la
 latéralité **que** sur la vue de face. Le tableau, lui, porte toujours
@@ -166,7 +188,11 @@ RT THYROID LOBE N1 SUP EXT POST A0%
 ```
 
 Les descripteurs sont extraits entre le numéro de nodule et le marqueur `A…%`,
-par l'expression `N\d+[DG]?\s+(.*?)\s*A[O0]?\d*%`.
+par l'expression `N\d+[DG]?\s+(.*?)\s*A[O0]?\d*%`. Si la légende ne porte pas
+de marqueur `A…%`, tout ce qui suit le numéro de nodule est lu.
+
+L'isthme fait exception : il est cherché sur la **légende entière**, puisqu'il
+peut précéder le numéro de nodule.
 
 ---
 

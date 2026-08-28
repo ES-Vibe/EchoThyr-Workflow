@@ -477,6 +477,30 @@ class ThyroidRenderer:
                 logger.error(f"Failed to render thyroid schema: {e}", exc_info=e)
             return False
 
+    def _isthmus_offsets(self, nodules: Sequence[NodulePosition],
+                         geometry: ThyroidGeometry) -> dict:
+        """Decalages horizontaux des nodules isthmiques.
+
+        L'isthme est une region d'implantation : elle peut porter plusieurs
+        nodules, qui se superposeraient tous au centre de la vue de face. Ils
+        sont donc ranges cote a cote, le groupe restant centre sur la mediane.
+        """
+        idx = [i for i, n in enumerate(nodules) if n.is_isthmic]
+        if len(idx) < 2:
+            return {}
+
+        radii = [face_ellipse(nodules[i], geometry, self.pyramidal_lobe)[2]
+                 for i in idx]
+        gap = 6.0
+        span = sum(2 * r for r in radii) + gap * (len(radii) - 1)
+
+        offsets = {}
+        x = -span / 2
+        for i, r in zip(idx, radii):
+            offsets[i] = x + r
+            x += 2 * r + gap
+        return offsets
+
     def render_image(self, nodules: Sequence[NodulePosition],
                      geometry: Optional[ThyroidGeometry] = None) -> Image.Image:
         """Rend le schema et renvoie l'image Pillow."""
@@ -511,12 +535,14 @@ class ThyroidRenderer:
         # --- nodules --------------------------------------------------------
         # L'etiquette reste a 10 px effectifs malgre le x1.22 de la vue de face
         f_label = _font(NODULE_LABEL_SIZE * ss, bold=True)
-        for nod in nodules:
+        isthmus_dx = self._isthmus_offsets(nodules, geometry)
+        for i, nod in enumerate(nodules):
             fill, stroke = _colors(nod.nodule_id)
             label = f"N{nod.nodule_id}"
 
             # Vue de face
             cx, cy, rx, ry = face_ellipse(nod, geometry, self.pyramidal_lobe)
+            cx += isthmus_dx.get(i, 0.0)
             fx, fy = scale_about([(cx, cy)], self.face_scale, FACE_PIVOT)[0]
             draw.ellipse(
                 box(_ellipse_box(fx, fy, rx * self.face_scale, ry * self.face_scale)),

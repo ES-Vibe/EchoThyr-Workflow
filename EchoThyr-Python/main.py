@@ -311,15 +311,24 @@ class EchoThyrApp:
                     for nod_meas in sr_report.nodules:
                         side_rt_lt = "RT" if nod_meas.side == "Rt" else "LT"
                         # Find matching OCR context for position
-                        position_text = ""
-                        for ctx in nodule_ocr_contexts:
-                            if ctx.nodule == str(nod_meas.nodule_id) and ctx.side == side_rt_lt:
-                                position_text = ctx.position_text
-                                break
+                        nod_num = str(nod_meas.nodule_id)
+                        match = next(
+                            (c for c in nodule_ocr_contexts
+                             if c.nodule == nod_num and c.side == side_rt_lt), None)
+                        if match is None:
+                            # Le cote d'un nodule isthmique n'a pas de sens :
+                            # se rabattre sur le seul numero de nodule.
+                            match = next(
+                                (c for c in nodule_ocr_contexts
+                                 if c.nodule == nod_num and c.is_isthmus), None)
+                        position_text = match.position_text if match else ""
 
                         nod_pos = position_parser.parse_position_text(
                             position_text, nod_meas.nodule_id, side_rt_lt
                         )
+                        # Le SR ne connait pas l'isthme, l'info vient de l'OCR
+                        if match and match.is_isthmus:
+                            nod_pos.is_isthmic = True
                         # Enrich with SR dimensions
                         nod_pos.height_mm = nod_meas.height
                         nod_pos.width_mm = nod_meas.width

@@ -44,6 +44,11 @@ LATERAL_TOKENS = {
 
 ISTHMUS_TOKENS = {"ISTHME", "ISTHMUS", "ISTHMIQUE"}
 
+# L'isthme est une region d'implantation au meme titre qu'un lobe. Il peut
+# etre nomme n'importe ou dans la legende, y compris AVANT le numero de
+# nodule (« ISTHME N2 »), donc hors du segment de position.
+ISTHMUS_RE = re.compile(r'ISTHM', re.IGNORECASE)
+
 # Tokens to ignore (descriptive terms, not position)
 IGNORE_TOKENS = {
     "KYSTE", "AMAS", "PONCTION", "MACROCAL", "MICROCALC",
@@ -118,5 +123,21 @@ class PositionParser:
         )
         if pos_match:
             position_text = pos_match.group(1).strip()
+        else:
+            # Legende sans marqueur A..% : tout ce qui suit le numero
+            tail = re.search(r'N\d+[DG]?\s+(.*)', legend_text, re.IGNORECASE)
+            if tail:
+                position_text = tail.group(1).strip()
 
-        return self.parse_position_text(position_text, nodule_id, side)
+        pos = self.parse_position_text(position_text, nodule_id, side)
+
+        # L'isthme peut etre nomme avant le numero de nodule, donc hors du
+        # segment de position : le chercher sur la legende entiere.
+        if self.mentions_isthmus(legend_text):
+            pos.is_isthmic = True
+
+        return pos
+
+    def mentions_isthmus(self, text: str) -> bool:
+        """True si le texte designe l'isthme, ou qu'il soit place."""
+        return bool(text and ISTHMUS_RE.search(text))

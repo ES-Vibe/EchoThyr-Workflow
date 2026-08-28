@@ -585,7 +585,10 @@ class WordGenerator:
                           if m.side == "RT" and not m.nodule and not m.is_isthmus), None)
         left_lobe = next((m for m in measurements
                          if m.side == "LT" and not m.nodule and not m.is_isthmus), None)
-        isthmus = next((m for m in measurements if m.is_isthmus), None)
+        # « ISTHME » seul = mesure de la glande ; « ISTHME N2 » = nodule situe
+        # dans l'isthme, qui ne doit pas etre pris pour la mesure de glande.
+        isthmus = next((m for m in measurements
+                        if m.is_isthmus and not m.nodule), None)
         nodules = [m for m in measurements if m.nodule]
 
         # Build report text (using \r\n for Word compatibility)
@@ -598,7 +601,12 @@ class WordGenerator:
         text += "• Nodules :\r\n"
 
         for nodule in nodules:
-            location = "Lobe droit" if nodule.side == "RT" else "Lobe gauche"
+            if nodule.is_isthmus:
+                location = "Isthme"
+            elif nodule.side == "RT":
+                location = "Lobe droit"
+            else:
+                location = "Lobe gauche"
             text += f"  - Nodule N{nodule.nodule} {location} : {nodule.text}\r\n"
 
         text += "• Etude des ganglions (secteurs II, III, IV, VI) et du tractus thyréoglosse : 0"
