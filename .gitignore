@@ -70,6 +70,10 @@ C:/EchoThyr/
 # Documents générés (comptes rendus patients)
 *.pdf
 
+# Exports de Structured Reports (contiennent nom + mesures du patient)
+*_SR.txt
+*_SR.json
+
 # OS Files
 # --------
 .DS_Store

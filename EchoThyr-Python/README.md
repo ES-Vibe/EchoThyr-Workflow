@@ -176,6 +176,10 @@ milieu). Un nodule plus gros que le lobe déborde volontairement : le contour es
 redessiné par-dessus pour rendre le dépassement explicite plutôt que de mentir
 sur la taille. Si une mesure de lobe manque, un repli 45 × 15 × 15 mm s'applique.
 
+> 📖 Le vocabulaire complet des localisations (étage, profondeur, latéralité,
+> abréviations des croix, formes acceptées par l'OCR) est détaillé dans
+> **[docs/LEXIQUE.md](docs/LEXIQUE.md)**.
+
 ### Positionnement des nodules
 
 La position est extraite des légendes de l'échographe GE (format : `RT THYROID LOBE N1 SUP EXT POST A0%`) :
